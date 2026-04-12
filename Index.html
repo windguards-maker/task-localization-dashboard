@@ -121,6 +121,23 @@
       return str ? String(str).replace(/\s+/g, '').toUpperCase() : '';
     }
 
+    function getIndividualIndicatorHtml(traineeId, subjectCode) {
+      if (!globalData.trainingData) return '';
+      var phases = ['1', '2', '3'];
+      var html = '<div class="flex gap-0.5 ml-1">';
+      phases.forEach(function(p) {
+        var record = globalData.trainingData.find(function(td) {
+          return normalize(td.traineeId) === normalize(traineeId) && 
+                 normalize(td.subjectCode) === normalize(subjectCode) && 
+                 normalize(td.phase).indexOf(p) !== -1;
+        });
+        var bgColor = record ? 'bg-green-500' : 'bg-gray-200';
+        html += '<div class="w-1.5 h-1.5 rounded-full ' + bgColor + '" title="' + p + '차 교육"></div>';
+      });
+      html += '</div>';
+      return html;
+    }
+
     window.onload = function() {
       if (typeof google !== 'undefined' && google.script) {
         google.script.run.withSuccessHandler(initDashboard).getDashboardData();
