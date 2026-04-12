@@ -619,6 +619,32 @@
           else if (m.dept.indexOf('생관') !== -1 || m.dept.indexOf('생산') !== -1) deptTheme = 'bg-green-100 text-green-800 border-green-200';
 
           var managerStr = m.manager || '미지정';
+          
+          // 강사 정보 조회
+          var trainer = globalData.manpower.find(function(emp) { return normalize(emp.id) === normalize(m.trainerId); });
+          var trainerHtml = '';
+          if (trainer) {
+            var photoUrl = trainer.photo;
+            if (photoUrl && photoUrl.indexOf('id=') !== -1) {
+                var match = photoUrl.match(/id=([^&]+)/);
+                if (match) photoUrl = 'https://drive.google.com/thumbnail?id=' + match[1] + '&sz=w200-h200';
+            }
+            var photoContent = (photoUrl && photoUrl.startsWith('http')) 
+              ? '<img src="' + photoUrl + '" class="w-12 h-12 rounded-full object-cover border-2 border-purple-100 shadow-sm">'
+              : '<div class="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 font-bold">' + (trainer.name?trainer.name[0]:'?') + '</div>';
+            
+            trainerHtml = '<div class="hidden lg:flex items-center gap-3 px-4 py-2 bg-gray-50/50 rounded-xl border border-gray-100 min-w-[280px] shadow-sm">' +
+                photoContent +
+                '<div>' +
+                  '<div class="flex items-center gap-2 mb-0.5">' +
+                    '<span class="text-sm font-black text-gray-800">' + (trainer.name || '') + '</span>' +
+                    '<span class="text-[10px] text-gray-400 font-mono tracking-tighter">' + (trainer.id || '') + '</span>' +
+                  '</div>' +
+                  '<p class="text-[10px] text-gray-500 truncate">' + (trainer.factory || '') + ' > ' + (trainer.dept || '') + ' > ' + (trainer.part || '') + '</p>' +
+                  '<div class="w-8 h-1 bg-purple-200 rounded-full mt-1"></div>' +
+                '</div>' +
+              '</div>';
+          }
 
           container.innerHTML += '<div class="' + cardBgClass + ' p-5 rounded-lg shadow-sm border hover:shadow-md transition flex flex-col md:flex-row gap-6 items-start md:items-center justify-between">' +
               '<div class="flex-1 w-full md:w-auto">' +
@@ -628,8 +654,9 @@
                       '<span class="text-xs font-bold px-2 py-0.5 rounded border ' + deptTheme + '">' + mDept + '</span>' +
                   '</div>' +
                   '<h4 class="font-bold text-xl text-gray-900 mb-1 leading-tight">' + m.name + '</h4>' +
-                  '<p class="text-sm text-gray-500">👨‍💼 담당주재원 : <span class="font-medium text-gray-700">' + managerStr + '</span></p>' +
+                  '<p class="text-sm text-gray-500 flex items-center gap-1"><span class="opacity-70">👨‍💼 담당주재원 :</span> <span class="font-bold text-gray-700">' + managerStr + '</span></p>' +
               '</div>' +
+              trainerHtml + 
               '<div class="w-full md:w-auto flex flex-row shrink-0 bg-white/60 p-2 rounded-lg border border-gray-200/60 shadow-inner">' +
                   '<div class="text-center px-4 md:px-6 py-2">' +
                       '<p class="text-xs text-gray-500 mb-1">사무직</p>' +
