@@ -25,7 +25,12 @@
   </div>
 
   <div class="max-w-7xl mx-auto pt-8" id="app" style="display:none;">
-    <h1 class="text-3xl font-bold mb-6 text-gray-800 text-center">업무 분장별 현지화율 및 교육과목 현황판</h1>
+    <div class="flex justify-between items-center mb-6">
+      <h1 class="text-3xl font-bold text-gray-800">업무 분장별 현지화율 및 교육과목 현황판</h1>
+      <a href="?p=trainer" target="_blank" class="bg-purple-600 text-white px-4 py-2 rounded-lg shadow hover:bg-purple-700 transition flex items-center gap-2 text-sm font-bold">
+         👨‍🏫 강사 전용 입력 시스템 이동
+      </a>
+    </div>
     
     <div class="flex flex-wrap border-b mb-6 bg-white shadow-sm rounded-t-lg mt-4">
       <button class="tab-btn active flex-1 min-w-[150px] py-3 text-gray-600 hover:text-blue-600 text-sm" onclick="switchTab('tab1', this)">대시보드 요약</button>
@@ -33,6 +38,7 @@
       <button class="tab-btn flex-1 min-w-[150px] py-3 text-gray-600 hover:text-blue-600 text-sm" onclick="switchTab('tab3', this)">사무직 수강과목</button>
       <button class="tab-btn flex-1 min-w-[150px] py-3 text-gray-600 hover:text-blue-600 text-sm" onclick="switchTab('tab4', this)">현장직 수강과목</button>
       <button class="tab-btn flex-1 min-w-[150px] py-3 text-gray-600 hover:text-blue-600 text-sm" onclick="switchTab('tab5', this)">과목별 교육현황</button>
+      <button class="tab-btn flex-1 min-w-[150px] py-3 text-gray-600 hover:text-purple-600 text-sm font-bold" onclick="switchTab('tab6', this)">👨‍🏫 현지인 강사</button>
     </div>
 
     <div id="filterSection" class="bg-white p-4 rounded-lg shadow-sm mb-6 hidden flex flex-wrap justify-between items-center gap-4">
@@ -96,10 +102,13 @@
 
     <div id="tab5" class="tab-content hidden flex-col gap-4"></div>
 
+    <div id="tab6" class="tab-content hidden flex-col gap-4"></div>
+
   </div>
 
   <script>
-    var globalData = { status: [], manpower: [], subject: [], master: [] };
+    var globalData = { status: [], manpower: [], subject: [], master: [], trainingData: [], evidenceData: [] };
+    var currentModalContext = { code: '', name: '', trainerId: '' };
 
     function getColorByRate(rate) {
       if (rate <= 20) return { text: 'text-red-600', bar: 'bg-red-500' };
@@ -126,12 +135,49 @@
       globalData.manpower = data.manpowerData;
       globalData.subject = data.subjectData;
       globalData.master = data.masterData; 
+      globalData.trainingData = data.trainingData; 
+      globalData.evidenceData = data.evidenceData || [];
       
       document.getElementById('loading').style.display = 'none';
       document.getElementById('app').style.display = 'block';
 
       initFilters();
       renderTab1();
+    }
+
+    /**
+     * 특정 과목과 강사에 매칭되는 수강 대상자 목록을 반환합니다.
+     */
+    function getTargetTrainees(code, trainerId) {
+      if (!globalData.master) return [];
+      var mt = globalData.master.find(function(m) { return normalize(m.code) === normalize(code); });
+      var targetSubjectName = mt ? normalize(mt.name) : '';
+      if (!targetSubjectName) return [];
+
+      var trainees = [];
+      globalData.status.forEach(function(task) {
+        var subj = globalData.subject.find(function(sb) { 
+          return normalize(sb.factory) === normalize(task.factory) && normalize(sb.dept) === normalize(task.dept) &&
+                 normalize(sb.part) === normalize(task.part) && normalize(sb.taskName) === normalize(task.taskName);
+        });
+        if (subj) {
+          if (subj.related.some(function(s) { return normalize(s) === targetSubjectName; }) || 
+              subj.additional.some(function(s) { return normalize(s) === targetSubjectName; })) {
+            task.employees.forEach(function(e) {
+              if (e.id && normalize(e.id) !== normalize(trainerId) && !trainees.some(function(tr){return normalize(tr.id)===normalize(e.id)})) {
+                trainees.push(e.id);
+              }
+            });
+          }
+        }
+      });
+      return trainees;
+    }
+
+    function getLampColor(targetCount, inputCount) {
+      if (inputCount === 0) return 'bg-gray-200';
+      if (inputCount < targetCount) return 'bg-amber-400';
+      return 'bg-green-500';
     }
 
     function downloadReport() {
@@ -179,7 +225,7 @@
       var target = document.getElementById(tabId);
       target.classList.remove('hidden');
       
-      if(tabId === 'tab3' || tabId === 'tab4' || tabId === 'tab5') {
+      if(tabId === 'tab3' || tabId === 'tab4' || tabId === 'tab5' || tabId === 'tab6') {
         target.style.display = 'flex';
       } else {
         target.style.display = 'block';
@@ -196,7 +242,7 @@
         applyFilters();
       }
 
-      if (tabId === 'tab3' || tabId === 'tab4' || tabId === 'tab5') {
+      if (tabId === 'tab3' || tabId === 'tab4' || tabId === 'tab5' || tabId === 'tab6') {
         tabSummary.classList.remove('hidden');
       } else {
         tabSummary.classList.add('hidden');
@@ -243,6 +289,7 @@
       if (activeTabId === 'tab3') renderTab3(fVal, dVal, pVal);
       if (activeTabId === 'tab4') renderTab4(fVal, dVal, pVal);
       if (activeTabId === 'tab5') renderTab5(fVal, dVal, pVal); 
+      if (activeTabId === 'tab6') renderTab6(fVal, dVal, pVal); 
     }
 
     function renderTab1() {
@@ -374,8 +421,18 @@
                    normalize(sb.part) === normalize(t.part) && normalize(sb.taskName) === normalize(t.taskName);
           });
           if (subj) {
-            subj.related.forEach(function(s) { mySubjects.add('<span class="inline-block bg-blue-100 text-blue-800 text-xs px-2.5 py-1 rounded m-1">' + s + '</span>'); });
-            subj.additional.forEach(function(s) { mySubjects.add('<span class="inline-block bg-gray-100 text-gray-800 text-xs px-2.5 py-1 rounded m-1">' + s + '</span>'); });
+            subj.related.forEach(function(s) { 
+              var mInfo = globalData.master.find(function(m) { return normalize(m.name) === normalize(s); });
+              if (!mInfo || normalize(mInfo.trainerId) !== normalize(emp.id)) {
+                mySubjects.add('<span class="inline-block bg-blue-100 text-blue-800 text-xs px-2.5 py-1 rounded m-1">' + s + '</span>'); 
+              }
+            });
+            subj.additional.forEach(function(s) { 
+              var mInfo = globalData.master.find(function(m) { return normalize(m.name) === normalize(s); });
+              if (!mInfo || normalize(mInfo.trainerId) !== normalize(emp.id)) {
+                mySubjects.add('<span class="inline-block bg-gray-100 text-gray-800 text-xs px-2.5 py-1 rounded m-1">' + s + '</span>'); 
+              }
+            });
           }
         });
         container.innerHTML += createEmpCard(emp, mySubjects, true);
@@ -405,8 +462,18 @@
                    normalize(sb.part) === normalize(t.part) && normalize(sb.taskName) === normalize(t.taskName);
           });
           if (subj) {
-            subj.related.forEach(function(s) { mySubjects.add('<span class="inline-block bg-green-100 text-green-800 text-xs px-2.5 py-1 rounded m-1">' + s + '</span>'); });
-            subj.additional.forEach(function(s) { mySubjects.add('<span class="inline-block bg-gray-100 text-gray-800 text-xs px-2.5 py-1 rounded m-1">' + s + '</span>'); });
+            subj.related.forEach(function(s) { 
+              var mInfo = globalData.master.find(function(m) { return normalize(m.name) === normalize(s); });
+              if (!mInfo || normalize(mInfo.trainerId) !== normalize(emp.id)) {
+                mySubjects.add('<span class="inline-block bg-green-100 text-green-800 text-xs px-2.5 py-1 rounded m-1">' + s + '</span>'); 
+              }
+            });
+            subj.additional.forEach(function(s) { 
+              var mInfo = globalData.master.find(function(m) { return normalize(m.name) === normalize(s); });
+              if (!mInfo || normalize(mInfo.trainerId) !== normalize(emp.id)) {
+                mySubjects.add('<span class="inline-block bg-gray-100 text-gray-800 text-xs px-2.5 py-1 rounded m-1">' + s + '</span>'); 
+              }
+            });
           }
         });
         container.innerHTML += createEmpCard(emp, mySubjects, false);
@@ -581,6 +648,362 @@
         }
       });
     }
+
+    function renderTab6(fVal, dVal, pVal) {
+      var container = document.getElementById('tab6');
+      container.innerHTML = '';
+      
+      var trainerIds = Array.from(new Set(globalData.master.map(function(m) { return normalize(m.trainerId); }).filter(Boolean)));
+      
+      var trainers = globalData.manpower.filter(function(m) { 
+        return trainerIds.indexOf(normalize(m.id)) !== -1 && (!fVal || m.factory === fVal) && (!dVal || m.dept === dVal) && (!pVal || m.part === pVal);
+      });
+
+      document.getElementById('tabSummary').innerHTML = '<div class="bg-purple-50 border border-purple-200 text-purple-800 px-4 py-2 rounded-lg shadow-sm text-sm font-bold flex items-center gap-2">' +
+          '<span>지정 강사:</span> <span class="text-lg leading-none">' + trainers.length + '명</span>' +
+        '</div>';
+
+      trainers.forEach(function(emp) {
+        var myTrainedSubjects = globalData.master.filter(function(m) { return normalize(m.trainerId) === normalize(emp.id); });
+        var mySubjectsHtml = [];
+        
+        myTrainedSubjects.forEach(function(m) {
+          var targetList = utilGetTraineesForSubject(m.code, emp.id);
+          var targetCnt = targetList.length;
+
+          var p1Cnt = 0, p2Cnt = 0, p3Cnt = 0;
+          if (globalData.trainingData) {
+            var myHistory = globalData.trainingData.filter(function(td) { 
+              return normalize(td.subjectCode) === normalize(m.code) && normalize(td.trainerId) === normalize(emp.id); 
+            });
+            var p1Users = new Set(), p2Users = new Set(), p3Users = new Set();
+            myHistory.forEach(function(td) {
+              if (normalize(td.phase).indexOf('1') !== -1) p1Users.add(normalize(td.traineeId));
+              if (normalize(td.phase).indexOf('2') !== -1) p2Users.add(normalize(td.traineeId));
+              if (normalize(td.phase).indexOf('3') !== -1) p3Users.add(normalize(td.traineeId));
+            });
+            p1Cnt = p1Users.size; p2Cnt = p2Users.size; p3Cnt = p3Users.size;
+          }
+          
+          var dot1 = getLampColor(targetCnt, p1Cnt);
+          var dot2 = getLampColor(targetCnt, p2Cnt);
+          var dot3 = getLampColor(targetCnt, p3Cnt);
+
+          var indicatorHtml = '<div class="flex gap-1 ml-2">' +
+            '<div class="w-2.5 h-2.5 rounded-full ' + dot1 + '" title="1차 (' + p1Cnt + '/' + targetCnt + ')"></div>' +
+            '<div class="w-2.5 h-2.5 rounded-full ' + dot2 + '" title="2차 (' + p2Cnt + '/' + targetCnt + ')"></div>' +
+            '<div class="w-2.5 h-2.5 rounded-full ' + dot3 + '" title="3차 (' + p3Cnt + '/' + targetCnt + ')"></div>' +
+          '</div>';
+
+          var displayName = m.engName || m.name;
+          var btnHtml = '<button onclick="openTrainingModal(\'' + m.code + '\', \'' + displayName + '\', \'' + emp.id + '\')" class="inline-flex items-center bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 hover:shadow text-xs px-3 py-1.5 rounded-full m-1 transition">' +
+            '<span class="font-bold">' + m.code + '</span>' + indicatorHtml + 
+          '</button>';
+          
+          mySubjectsHtml.push(btnHtml);
+        });
+
+        var subStr = mySubjectsHtml.length > 0 ? mySubjectsHtml.join('') : '<span class="text-sm text-gray-400 m-1">배정된 과목 없음</span>';
+        
+        var borderColor = 'border-purple-500';
+        var badgeTheme = 'bg-purple-50 text-purple-700 ring-purple-600/20';
+        
+        var defaultAvatar = "https://ui-avatars.com/api/?name=" + encodeURIComponent(emp.name || 'N') + "&background=random";
+        var finalPhotoUrl = emp.photo;
+        if (finalPhotoUrl && finalPhotoUrl.indexOf('drive.google.com/uc') !== -1 && finalPhotoUrl.indexOf('id=') !== -1) {
+            var fileIdMatch = finalPhotoUrl.match(/id=([^&]+)/);
+            if (fileIdMatch && fileIdMatch[1]) {
+                finalPhotoUrl = 'https://drive.google.com/thumbnail?id=' + fileIdMatch[1] + '&sz=w200-h200';
+            }
+        }
+        var photosHtml = (emp.photo && emp.photo.indexOf('http') === 0) 
+          ? '<img src="' + finalPhotoUrl + '" class="w-20 h-20 rounded-full object-cover border-2 border-purple-100 shadow-sm" onerror="this.src=\'' + defaultAvatar + '\'">'
+          : '<div class="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 font-bold text-xl border-2 border-gray-100 shadow-sm">' + (emp.name?emp.name.charAt(0):'N') + '</div>';
+
+        var cardHtml = '<div class="bg-white p-5 rounded-lg shadow border-l-4 ' + borderColor + ' flex flex-col md:flex-row gap-6 items-start md:items-center hover:shadow-md transition">' +
+            '<div class="flex-shrink-0">' + photosHtml + '</div>' +
+            '<div class="md:w-1/3 w-full flex-shrink-0">' +
+              '<div class="flex items-baseline gap-2 mb-1">' +
+                '<h4 class="font-bold text-xl text-gray-800">' + (emp.name || '') + '</h4>' +
+                '<span class="text-sm text-gray-500">' + (emp.id || '') + '</span>' +
+              '</div>' +
+              '<p class="text-sm text-gray-600">' + (emp.factory||'') + ' > ' + (emp.dept||'') + ' > ' + (emp.part||'') + '</p>' +
+              '<p class="inline-flex items-center rounded-md px-2 py-1 mt-2 text-xs font-medium ring-1 ring-inset ' + badgeTheme + '">' + (emp.position||'') + '</p>' +
+            '</div>' +
+            '<div class="md:w-2/3 w-full border-t md:border-t-0 md:border-l border-gray-100 pt-4 md:pt-0 md:pl-6 min-h-[5rem]">' +
+              '<h5 class="text-xs font-bold text-gray-500 mb-2 flex items-center gap-1">👨‍🏫 담당 트레이닝 과목 <span class="text-gray-400 text-[10px] ml-2 font-normal">(진행상태: 1/2/3차)</span></h5>' +
+              '<div class="flex flex-wrap">' + subStr + '</div>' +
+            '</div>' +
+          '</div>';
+        
+        container.innerHTML += cardHtml;
+      });
+    }
+
+    /**
+     * 특정 과목과 강사에 해당하는 수강생 명단을 반환합니다. (기존 openTrainingModal 로직 공용화)
+     */
+    function utilGetTraineesForSubject(code, trainerId) {
+      var mt = globalData.master.find(function(m) { return normalize(m.code) === normalize(code); });
+      var targetName = mt ? normalize(mt.name) : '';
+      var trainees = [];
+
+      globalData.status.forEach(function(task) {
+        var subj = globalData.subject.find(function(sb) { 
+          return normalize(sb.factory) === normalize(task.factory) && normalize(sb.dept) === normalize(task.dept) &&
+                 normalize(sb.part) === normalize(task.part) && normalize(sb.taskName) === normalize(task.taskName);
+        });
+        if (subj) {
+          if (subj.related.some(function(s) { return normalize(s) === targetName; }) || 
+              subj.additional.some(function(s) { return normalize(s) === targetName; })) {
+            task.employees.forEach(function(e) {
+              if (e.id && normalize(e.id) !== normalize(trainerId) && !trainees.some(function(tr){return normalize(tr.id)===normalize(e.id)})) {
+                var empInfo = globalData.manpower.find(function(m) { return normalize(m.id) === normalize(e.id); });
+                trainees.push(empInfo || { id: e.id, name: e.name, type: (task.typeOffice === 'O' ? 'Office' : 'Field') });
+              }
+            });
+          }
+        }
+      });
+      return trainees;
+    }
+
+    function getLampColor(targetCount, inputCount) {
+      if (inputCount === 0) return 'bg-gray-200';
+      if (inputCount < targetCount) return 'bg-amber-400';
+      return 'bg-green-500';
+    }
+
+    function openTrainingModal(code, name, trainerId) {
+      currentModalContext = { code: code, name: name, trainerId: trainerId };
+      document.getElementById('modalSubjectName').innerText = name;
+      document.getElementById('modalSubjectCode').innerText = code;
+      
+      var trainees = utilGetTraineesForSubject(code, trainerId);
+      
+      var tbody = document.getElementById('modalTrainees');
+      tbody.innerHTML = '';
+      trainees.forEach(function(tr) {
+        var typeStr = (normalize(tr.type).indexOf('사무') !== -1 || tr.type === 'Office') ? 'Office' : 'Field';
+        tbody.innerHTML += '<tr class="border-b" data-id="' + tr.id + '">' +
+          '<td class="px-3 py-2 text-sm">' + tr.name + '</td>' +
+          '<td class="px-3 py-2 text-sm text-gray-500">' + tr.id + '</td>' +
+          '<td class="px-3 py-2 text-sm text-gray-400">' + typeStr + '</td>' +
+          '<td class="px-3 py-2 text-sm w-28"><input type="number" class="score-input border rounded px-2 py-1 w-full bg-gray-50" disabled></td>' +
+          '<td class="px-3 py-2 text-sm"><input type="text" class="opinion-input border rounded px-2 py-1 w-full bg-gray-50" disabled></td>' +
+        '</tr>';
+      });
+      
+      document.getElementById('saveRecordBtn').classList.add('hidden');
+      document.getElementById('trainingModal').classList.remove('hidden');
+    }
+
+    function checkAutoLoad() {
+      var phase = document.getElementById('modalPhase').value;
+      if (!phase) return;
+
+      document.querySelectorAll('.score-input, .opinion-input').forEach(function(inp){ inp.value = ''; });
+      document.getElementById('modalDate').value = ''; 
+
+      var records = globalData.trainingData.filter(function(td) {
+        return normalize(td.subjectCode) === normalize(currentModalContext.code) &&
+               normalize(td.trainerId) === normalize(currentModalContext.trainerId) &&
+               normalize(td.phase) === normalize(phase);
+      });
+
+      if (records.length > 0) {
+        // 가장 최근 데이터의 날짜로 자동 세팅
+        if (records[0].date) {
+           var d = new Date(records[0].date);
+           if (!isNaN(d)) {
+             document.getElementById('modalDate').value = d.toISOString().split('T')[0];
+           } else {
+             document.getElementById('modalDate').value = String(records[0].date);
+           }
+        }
+        
+        records.forEach(function(rec) {
+          var row = document.querySelector('#modalTrainees tr[data-id="' + rec.traineeId + '"]');
+          if (row) {
+            row.querySelector('.score-input').value = rec.score || '';
+            row.querySelector('.opinion-input').value = rec.opinion || '';
+          }
+        });
+        
+        
+        var preview = document.getElementById('photoPreview');
+        var evRec = globalData.evidenceData.find(function(ev) {
+          return normalize(ev.phase) === normalize(phase) &&
+                 normalize(ev.subjectCode) === normalize(currentModalContext.code) &&
+                 normalize(ev.trainerId) === normalize(currentModalContext.trainerId);
+        });
+
+        if (evRec && evRec.photoUrl && evRec.photoUrl.startsWith('http')) {
+          preview.innerHTML = '<button type="button" onclick="window.open(\'' + evRec.photoUrl + '\')" class="inline-flex items-center px-4 py-2 border border-purple-300 shadow-sm text-sm font-medium rounded-md text-purple-700 bg-white hover:bg-purple-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 scale-95 hover:scale-100 transition-transform">' +
+                              '<svg class="-ml-1 mr-2 h-5 w-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>' +
+                              'See Picture</button>';
+        } else {
+          preview.innerHTML = '<button type="button" disabled class="inline-flex items-center px-4 py-2 border border-gray-200 shadow-sm text-sm font-medium rounded-md text-gray-400 bg-gray-50 cursor-not-allowed">' +
+                              'No Photo</button>';
+        }
+      }
+    }
+
+    function closeTrainingModal() {
+      document.getElementById('trainingModal').classList.add('hidden');
+      document.getElementById('modalPhase').value = '';
+      document.getElementById('modalDate').value = '';
+    }
+
+    function submitTrainingModal() {
+      var phase = document.getElementById('modalPhase').value;
+      var date = document.getElementById('modalDate').value;
+      var submitBtn = document.getElementById('saveRecordBtn');
+      
+      if (!phase) { alert('Please select a Training Phase.'); return; }
+      if (!date) { alert('Please select a Training Date.'); return; }
+
+      var traineesToSubmit = [];
+      var tbody = document.getElementById('modalTrainees');
+      var rows = tbody.getElementsByTagName('tr');
+      
+      for (var i = 0; i < rows.length; i++) {
+        var tds = rows[i].getElementsByTagName('td');
+        if(tds.length < 5) continue; 
+        
+        var idCell = tds[1].innerText;
+        var inputs = rows[i].getElementsByTagName('input');
+        if (inputs.length >= 2) {
+          var score = inputs[0].value.trim();
+          var opinion = inputs[1].value.trim();
+          if (score !== '' || opinion !== '') {
+             traineesToSubmit.push({
+               traineeId: idCell,
+               score: score,
+               opinion: opinion
+             });
+          }
+        }
+      }
+
+      if (traineesToSubmit.length === 0) {
+        alert('Please enter a Score or Comment for at least one trainee.');
+        return;
+      }
+      
+      submitBtn.innerText = 'Saving...';
+      submitBtn.disabled = true;
+
+      var submitData = {
+        phase: phase,
+        date: date,
+        code: currentModalContext.code,
+        name: currentModalContext.name,
+        trainerId: currentModalContext.trainerId,
+        trainees: traineesToSubmit
+      };
+
+      if (typeof google !== 'undefined' && google.script) {
+        google.script.run.withSuccessHandler(function() {
+          alert('Record saved successfully!');
+          submitBtn.innerText = 'Save Record';
+          submitBtn.disabled = false;
+          closeTrainingModal();
+        }).withFailureHandler(function(err) {
+          alert('Failed to save data: ' + err.message);
+          submitBtn.innerText = 'Save Record';
+          submitBtn.disabled = false;
+        }).saveTrainingRecords(submitData);
+      } else {
+        console.log("Submit Data: ", submitData);
+        alert('Local testing mode: Data logged to console.');
+        submitBtn.innerText = 'Save Record';
+        submitBtn.disabled = false;
+        closeTrainingModal();
+      }
+    }
   </script>
+
+  <!-- 교육 결과 입력 Modal -->
+  <div id="trainingModal" class="fixed inset-0 z-50 hidden overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+      
+      <!-- 배경 오버레이 -->
+      <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true" onclick="closeTrainingModal()"></div>
+
+      <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+      <!-- 모달 본체 -->
+      <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
+        <div class="bg-purple-600 px-4 py-3 border-b">
+          <h3 class="text-lg leading-6 font-bold text-white flex justify-between items-center" id="modal-title">
+            <span>🎓 Training Result Submission</span>
+            <button class="text-white hover:text-gray-200 text-xl font-bold" onclick="closeTrainingModal()">&times;</button>
+          </h3>
+        </div>
+        
+        <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+          <div class="mb-4 bg-purple-50 p-3 rounded border border-purple-100 flex items-center justify-between">
+             <div>
+                <span class="text-xs font-bold bg-white text-purple-600 px-2 py-0.5 border rounded mr-2" id="modalSubjectCode">EBL-XXX</span>
+                <span class="font-bold text-gray-800 text-lg" id="modalSubjectName">과목명</span>
+             </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-4 mb-5">
+             <div>
+                <label class="block text-sm font-bold text-gray-700 mb-1">Training Phase</label>
+                <select id="modalPhase" onchange="checkAutoLoad()" class="block w-full border-gray-300 rounded-md shadow-sm border p-2 text-sm focus:border-purple-500 focus:ring-purple-500">
+                   <option value="">Select Phase</option>
+                   <option value="1차">1st Phase</option>
+                   <option value="2차">2nd Phase</option>
+                   <option value="3차">3rd Phase</option>
+                </select>
+             </div>
+             <div>
+                <label class="block text-sm font-bold text-gray-700 mb-1">Training Date</label>
+                <input type="date" id="modalDate" onchange="checkAutoLoad()" class="block w-full border-gray-300 rounded-md shadow-sm border p-2 text-sm focus:border-purple-500 focus:ring-purple-500">
+             </div>
+          </div>
+
+          <div class="mb-6">
+             <label class="block text-sm font-bold text-gray-700 mb-2">Training Photo Evidence</label>
+             <div class="flex items-center gap-4">
+               <div id="photoPreview"></div>
+             </div>
+          </div>
+
+          <div>
+             <h4 class="font-bold text-sm text-gray-700 mb-2 border-b pb-1">Trainee List</h4>
+             <div class="overflow-y-auto max-h-48 border rounded shadow-sm">
+                <table class="min-w-full bg-white text-left">
+                   <thead class="bg-gray-100 sticky top-0">
+                      <tr>
+                         <th class="px-3 py-2 text-xs font-bold text-gray-600">Name</th>
+                         <th class="px-3 py-2 text-xs font-bold text-gray-600">Emp No.</th>
+                         <th class="px-3 py-2 text-xs font-bold text-gray-600">Type</th>
+                         <th class="px-3 py-2 text-xs font-bold text-gray-600 w-28">Score</th>
+                         <th class="px-3 py-2 text-xs font-bold text-gray-600">Comments / Opinion</th>
+                      </tr>
+                   </thead>
+                   <tbody id="modalTrainees">
+                      <!-- 동적 삽입 -->
+                   </tbody>
+                </table>
+             </div>
+          </div>
+        </div>
+        
+        <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse border-t">
+          <button type="button" id="saveRecordBtn" onclick="submitTrainingModal()" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-purple-600 text-base font-medium text-white hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:ml-3 sm:w-auto sm:text-sm transition disabled:opacity-50 disabled:cursor-not-allowed">
+            Save Record
+          </button>
+          <button type="button" onclick="closeTrainingModal()" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
