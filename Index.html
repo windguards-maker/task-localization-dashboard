@@ -664,18 +664,19 @@
                 if (match) photoUrl = 'https://drive.google.com/thumbnail?id=' + match[1] + '&sz=w200-h200';
             }
             var photoContent = (photoUrl && photoUrl.startsWith('http')) 
-              ? '<img src="' + photoUrl + '" class="w-12 h-12 rounded-full object-cover border-2 border-purple-100 shadow-sm">'
-              : '<div class="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 font-bold">' + (trainer.name?trainer.name[0]:'?') + '</div>';
+              ? '<img src="' + photoUrl + '" class="w-16 h-16 rounded-full object-cover border-2 border-purple-200 shadow-md">'
+              : '<div class="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 font-bold text-xl">' + (trainer.name?trainer.name[0]:'?') + '</div>';
             
-            trainerHtml = '<div class="hidden lg:flex items-center gap-3 px-4 py-2 bg-gray-50/50 rounded-xl border border-gray-100 min-w-[280px] shadow-sm">' +
+            trainerHtml = '<div class="hidden lg:flex items-center gap-4 px-6 py-4 bg-white/80 rounded-2xl border border-purple-100 min-w-[340px] shadow-sm transform hover:scale-[1.02] transition-transform">' +
                 photoContent +
                 '<div>' +
-                  '<div class="flex items-center gap-2 mb-0.5">' +
-                    '<span class="text-sm font-black text-gray-800">' + (trainer.name || '') + '</span>' +
-                    '<span class="text-[10px] text-gray-400 font-mono tracking-tighter">' + (trainer.id || '') + '</span>' +
+                  '<div class="flex items-center gap-2 mb-1">' +
+                    '<span class="text-base font-black text-gray-900">' + (trainer.name || '') + '</span>' +
+                    '<span class="text-xs text-gray-400 font-mono tracking-tighter">' + (trainer.id || '') + '</span>' +
                   '</div>' +
-                  '<p class="text-[10px] text-gray-500 truncate">' + (trainer.factory || '') + ' > ' + (trainer.dept || '') + ' > ' + (trainer.part || '') + '</p>' +
-                  '<div class="w-8 h-1 bg-purple-200 rounded-full mt-1"></div>' +
+                  '<p class="text-xs text-gray-500 font-medium">' + (trainer.factory || '') + ' > ' + (trainer.dept || '') + '</p>' +
+                  '<p class="text-[11px] text-gray-400 mt-0.5">' + (trainer.part || '') + '</p>' +
+                  '<div class="w-12 h-1 bg-purple-300 rounded-full mt-2"></div>' +
                 '</div>' +
               '</div>';
           }
