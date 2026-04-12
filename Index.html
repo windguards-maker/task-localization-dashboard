@@ -664,19 +664,21 @@
                 if (match) photoUrl = 'https://drive.google.com/thumbnail?id=' + match[1] + '&sz=w200-h200';
             }
             var photoContent = (photoUrl && photoUrl.startsWith('http')) 
-              ? '<img src="' + photoUrl + '" class="w-16 h-16 rounded-full object-cover border-2 border-purple-200 shadow-md">'
-              : '<div class="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 font-bold text-xl">' + (trainer.name?trainer.name[0]:'?') + '</div>';
+              ? '<img src="' + photoUrl + '" class="w-24 h-24 rounded-full object-cover border-4 border-purple-200 shadow-lg">'
+              : '<div class="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 font-bold text-3xl">' + (trainer.name?trainer.name[0]:'?') + '</div>';
             
-            trainerHtml = '<div class="hidden lg:flex items-center gap-4 px-6 py-4 bg-white/80 rounded-2xl border border-purple-100 min-w-[340px] shadow-sm transform hover:scale-[1.02] transition-transform">' +
+            trainerHtml = '<div class="hidden xl:flex items-center gap-6 px-10 py-6 bg-gradient-to-br from-white to-purple-50/30 rounded-3xl border-2 border-purple-100/50 min-w-[500px] shadow-sm">' +
                 photoContent +
-                '<div>' +
-                  '<div class="flex items-center gap-2 mb-1">' +
-                    '<span class="text-base font-black text-gray-900">' + (trainer.name || '') + '</span>' +
-                    '<span class="text-xs text-gray-400 font-mono tracking-tighter">' + (trainer.id || '') + '</span>' +
+                '<div class="flex-1">' +
+                  '<div class="flex flex-col mb-2">' +
+                    '<span class="text-2xl font-black text-gray-900 leading-tight mb-1">' + (trainer.name || '') + '</span>' +
+                    '<span class="text-sm font-bold text-gray-400 font-mono tracking-widest">' + (trainer.id || '') + '</span>' +
                   '</div>' +
-                  '<p class="text-xs text-gray-500 font-medium">' + (trainer.factory || '') + ' > ' + (trainer.dept || '') + '</p>' +
-                  '<p class="text-[11px] text-gray-400 mt-0.5">' + (trainer.part || '') + '</p>' +
-                  '<div class="w-12 h-1 bg-purple-300 rounded-full mt-2"></div>' +
+                  '<div class="flex flex-col gap-1">' +
+                    '<p class="text-xs font-black text-purple-600 uppercase tracking-wider">' + (trainer.factory || '') + ' 캠퍼스</p>' +
+                    '<p class="text-sm text-gray-700 font-bold">' + (trainer.dept || '') + ' > ' + (trainer.part || '') + '</p>' +
+                  '</div>' +
+                  '<div class="w-20 h-1.5 bg-gradient-to-r from-purple-400 to-transparent rounded-full mt-4"></div>' +
                 '</div>' +
               '</div>';
           }
