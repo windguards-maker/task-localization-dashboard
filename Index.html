@@ -664,19 +664,18 @@
                 if (match) photoUrl = 'https://drive.google.com/thumbnail?id=' + match[1] + '&sz=w200-h200';
             }
             var photoContent = (photoUrl && photoUrl.startsWith('http')) 
-              ? '<img src="' + photoUrl + '" class="w-18 h-18 rounded-full object-cover border-2 border-purple-200 shadow-sm">'
-              : '<div class="w-18 h-18 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 font-bold text-2xl">' + (trainer.name?trainer.name[0]:'?') + '</div>';
+              ? '<img src="' + photoUrl + '" class="w-14 h-14 rounded-full object-cover border border-purple-100 shadow-sm">'
+              : '<div class="w-14 h-14 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 font-bold text-lg">' + (trainer.name?trainer.name[0]:'?') + '</div>';
             
-            trainerHtml = '<div class="hidden xl:flex items-center gap-4 px-8 py-3 bg-white border border-gray-100 rounded-2xl min-w-[420px] shadow-sm self-stretch my-1">' +
+            trainerHtml = '<div class="hidden xl:flex items-center gap-3 px-6 py-2 bg-white border border-gray-100 rounded-xl min-w-[360px] shadow-sm self-stretch my-1.5">' +
                 photoContent +
-                '<div class="flex-1">' +
+                '<div>' +
                   '<div class="flex items-center gap-2 mb-0.5">' +
-                    '<span class="text-lg font-black text-gray-900 leading-none">' + (trainer.name || '') + '</span>' +
+                    '<span class="text-base font-black text-gray-900 leading-none">' + (trainer.name || '') + '</span>' +
                     '<span class="text-[10px] text-gray-400 font-mono">' + (trainer.id || '') + '</span>' +
                   '</div>' +
-                  '<p class="text-[11px] text-purple-600 font-black tracking-tight">' + (trainer.factory || '') + ' 캠퍼스</p>' +
-                  '<p class="text-xs text-gray-500 font-bold">' + (trainer.dept || '') + ' > ' + (trainer.part || '') + '</p>' +
-                  '<div class="w-10 h-1 bg-purple-200 rounded-full mt-1.5"></div>' +
+                  '<p class="text-[10px] text-purple-600 font-black tracking-tight mb-0.5">' + (trainer.factory || '') + ' 캠퍼스</p>' +
+                  '<p class="text-[11px] text-gray-500 font-bold leading-tight">' + (trainer.dept || '') + ' > ' + (trainer.part || '') + '</p>' +
                 '</div>' +
               '</div>';
           }
