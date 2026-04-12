@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>현지화율 및 교육과목 현황</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .tab-btn.active { border-bottom: 2px solid #2563eb; color: #2563eb; font-weight: bold; }
+    .loader { border-top-color: #3498db; -webkit-animation: spinner 1.5s linear infinite; animation: spinner 1.5s linear infinite; }
+    @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
+</head>
+<body class="bg-gray-50 p-6 font-sans">
+
+  <button id="downloadBtn" onclick="downloadReport()" class="fixed top-4 left-4 z-50 bg-gray-800 text-white px-4 py-2 rounded shadow-lg hover:bg-gray-700 transition flex items-center gap-2 text-sm font-bold">
+    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+    </svg>
+    레포트 출력
+  </button>
+
+  <div id="loading" class="fixed inset-0 bg-white flex flex-col items-center justify-center z-50">
+    <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4"></div>
+    <h2 class="text-center text-xl font-semibold">데이터를 불러오는 중입니다...</h2>
+  </div>
+
+  <div class="max-w-7xl mx-auto pt-8" id="app" style="display:none;">
+    <h1 class="text-3xl font-bold mb-6 text-gray-800 text-center">업무 분장별 현지화율 및 교육과목 현황판</h1>
+    
+    <div class="flex flex-wrap border-b mb-6 bg-white shadow-sm rounded-t-lg mt-4">
+      <button class="tab-btn active flex-1 min-w-[150px] py-3 text-gray-600 hover:text-blue-600 text-sm" onclick="switchTab('tab1', this)">대시보드 요약</button>
+      <button class="tab-btn flex-1 min-w-[150px] py-3 text-gray-600 hover:text-blue-600 text-sm" onclick="switchTab('tab2', this)">업무 상세조회</button>
+      <button class="tab-btn flex-1 min-w-[150px] py-3 text-gray-600 hover:text-blue-600 text-sm" onclick="switchTab('tab3', this)">사무직 수강과목</button>
+      <button class="tab-btn flex-1 min-w-[150px] py-3 text-gray-600 hover:text-blue-600 text-sm" onclick="switchTab('tab4', this)">현장직 수강과목</button>
+      <button class="tab-btn flex-1 min-w-[150px] py-3 text-gray-600 hover:text-blue-600 text-sm" onclick="switchTab('tab5', this)">과목별 교육현황</button>
+    </div>
+
+    <div id="filterSection" class="bg-white p-4 rounded-lg shadow-sm mb-6 hidden flex flex-wrap justify-between items-center gap-4">
+      <div class="flex gap-4 items-center">
+        <span class="font-bold text-gray-700">검색 필터:</span>
+        <select id="selFactory" class="border p-2 rounded" onchange="updateFilters('factory')"><option value="">공장 전체</option></select>
+        <select id="selDept" class="border p-2 rounded" onchange="updateFilters('dept')"><option value="">부서 전체</option></select>
+        <select id="selPart" class="border p-2 rounded" onchange="applyFilters()"><option value="">파트 전체</option></select>
+      </div>
+      <div id="tabSummary" class="hidden flex gap-3">
+        </div>
+    </div>
+
+    <div id="tab1" class="tab-content block">
+      <div class="grid grid-cols-3 gap-6 mb-8">
+        <div class="bg-white p-6 rounded-lg shadow border-l-4 border-blue-500 text-center flex flex-col justify-center">
+          <h3 class="text-lg font-bold text-gray-600 mb-1">총 현지화율 (전사)</h3>
+          <div id="kpiTotal" class="mt-2"></div>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow border-l-4 border-green-500 text-center flex flex-col justify-center">
+          <h3 class="text-lg font-bold text-gray-600 mb-1">1공장 현지화율 (BAP01)</h3>
+          <div id="kpiBap01" class="mt-2"></div>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow border-l-4 border-purple-500 text-center flex flex-col justify-center">
+          <h3 class="text-lg font-bold text-gray-600 mb-1">2공장 현지화율 (BAP02)</h3>
+          <div id="kpiBap02" class="mt-2"></div>
+        </div>
+      </div>
+      <div class="space-y-6">
+        <div class="bg-white p-6 rounded-lg shadow">
+          <h3 class="text-xl font-bold text-gray-800 mb-4 pb-2 border-b-2 border-green-500 inline-block">1공장(BAP01) 부서별 현지화율</h3>
+          <div id="bap01Cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-2"></div>
+        </div>
+        <div class="bg-white p-6 rounded-lg shadow">
+          <h3 class="text-xl font-bold text-gray-800 mb-4 pb-2 border-b-2 border-purple-500 inline-block">2공장(BAP02) 부서별 현지화율</h3>
+          <div id="bap02Cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mt-2"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="tab2" class="tab-content hidden block">
+      <div class="bg-white rounded-lg shadow overflow-hidden">
+        <table class="min-w-full">
+          <thead class="bg-gray-100">
+            <tr>
+              <th class="px-4 py-2 text-left text-sm font-bold text-gray-600">소속</th>
+              <th class="px-4 py-2 text-left text-sm font-bold text-gray-600">업무명 (구분)</th>
+              <th class="px-4 py-2 text-left text-sm font-bold text-gray-600">현지화율 (목표 vs 현재)</th>
+              <th class="px-4 py-2 text-left text-sm font-bold text-gray-600">관련 인원</th>
+              <th class="px-4 py-2 text-left text-sm font-bold text-gray-600">교육 과목</th>
+            </tr>
+          </thead>
+          <tbody id="taskTbody" class="divide-y"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="tab3" class="tab-content hidden flex-col gap-4"></div>
+
+    <div id="tab4" class="tab-content hidden flex-col gap-4"></div>
+
+    <div id="tab5" class="tab-content hidden flex-col gap-4"></div>
+
+  </div>
+
+  <script>
+    var globalData = { status: [], manpower: [], subject: [], master: [] };
+
+    function getColorByRate(rate) {
+      if (rate <= 20) return { text: 'text-red-600', bar: 'bg-red-500' };
+      if (rate <= 60) return { text: 'text-amber-500', bar: 'bg-amber-400' };
+      if (rate <= 80) return { text: 'text-green-600', bar: 'bg-green-500' };
+      return { text: 'text-blue-600', bar: 'bg-blue-500' };
+    }
+
+    function normalize(str) {
+      return str ? String(str).replace(/\s+/g, '').toUpperCase() : '';
+    }
+
+    window.onload = function() {
+      if (typeof google !== 'undefined' && google.script) {
+        google.script.run.withSuccessHandler(initDashboard).getDashboardData();
+      } else {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('app').style.display = 'block';
+      }
+    };
+
+    function initDashboard(data) {
+      globalData.status = data.statusData;
+      globalData.manpower = data.manpowerData;
+      globalData.subject = data.subjectData;
+      globalData.master = data.masterData; 
+      
+      document.getElementById('loading').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+
+      initFilters();
+      renderTab1();
+    }
+
+    function downloadReport() {
+      document.querySelectorAll('select').forEach(function(sel) {
+        Array.from(sel.options).forEach(function(opt) {
+          if (opt.value === sel.value) opt.setAttribute('selected', 'selected');
+          else opt.removeAttribute('selected');
+        });
+      });
+
+      var clone = document.documentElement.cloneNode(true);
+      var cloneBtn = clone.querySelector('#downloadBtn');
+      if (cloneBtn) cloneBtn.remove();
+      
+      var cloneLoader = clone.querySelector('#loading');
+      if (cloneLoader) cloneLoader.remove();
+
+      var htmlContent = '<!DOCTYPE html>\n' + clone.outerHTML;
+      var dataString = JSON.stringify(globalData);
+      
+      htmlContent = htmlContent.replace(
+        'var globalData = { status: [], manpower: [], subject: [], master: [] };',
+        'var globalData = ' + dataString + ';'
+      );
+
+      var blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      var today = new Date().toISOString().slice(0, 10);
+      a.download = '현지화율_현황판_레포트_' + today + '.html';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function switchTab(tabId, btn) {
+      document.querySelectorAll('.tab-content').forEach(function(el) {
+        el.classList.add('hidden');
+        el.style.display = ''; 
+      });
+      document.querySelectorAll('.tab-btn').forEach(function(el) { el.classList.remove('active'); });
+      
+      var target = document.getElementById(tabId);
+      target.classList.remove('hidden');
+      
+      if(tabId === 'tab3' || tabId === 'tab4' || tabId === 'tab5') {
+        target.style.display = 'flex';
+      } else {
+        target.style.display = 'block';
+      }
+      btn.classList.add('active');
+
+      var filterSection = document.getElementById('filterSection');
+      var tabSummary = document.getElementById('tabSummary');
+      
+      if (tabId === 'tab1') {
+        filterSection.classList.add('hidden');
+      } else {
+        filterSection.classList.remove('hidden');
+        applyFilters();
+      }
+
+      if (tabId === 'tab3' || tabId === 'tab4' || tabId === 'tab5') {
+        tabSummary.classList.remove('hidden');
+      } else {
+        tabSummary.classList.add('hidden');
+      }
+    }
+
+    function initFilters() {
+      var factories = Array.from(new Set(globalData.status.map(function(d) { return d.factory; }))).filter(Boolean);
+      var selFactory = document.getElementById('selFactory');
+      factories.forEach(function(f) { selFactory.add(new Option(f, f)); });
+    }
+
+    function updateFilters(level) {
+      var fVal = document.getElementById('selFactory').value;
+      var dVal = document.getElementById('selDept').value;
+      
+      var filtered = globalData.status;
+      if (fVal) filtered = filtered.filter(function(d) { return d.factory === fVal; });
+      
+      if (level === 'factory') {
+        var depts = Array.from(new Set(filtered.map(function(d) { return d.dept; }))).filter(Boolean);
+        var selDept = document.getElementById('selDept');
+        selDept.innerHTML = '<option value="">부서 전체</option>';
+        depts.forEach(function(d) { selDept.add(new Option(d, d)); });
+        document.getElementById('selPart').innerHTML = '<option value="">파트 전체</option>';
+      } else if (level === 'dept') {
+        if (dVal) filtered = filtered.filter(function(d) { return d.dept === dVal; });
+        var parts = Array.from(new Set(filtered.map(function(d) { return d.part; }))).filter(Boolean);
+        var selPart = document.getElementById('selPart');
+        selPart.innerHTML = '<option value="">파트 전체</option>';
+        parts.forEach(function(p) { selPart.add(new Option(p, p)); });
+      }
+      applyFilters();
+    }
+
+    function applyFilters() {
+      var fVal = document.getElementById('selFactory').value;
+      var dVal = document.getElementById('selDept').value;
+      var pVal = document.getElementById('selPart').value;
+
+      var activeTabId = document.querySelector('.tab-content:not(.hidden)').id;
+
+      if (activeTabId === 'tab2') renderTab2(fVal, dVal, pVal);
+      if (activeTabId === 'tab3') renderTab3(fVal, dVal, pVal);
+      if (activeTabId === 'tab4') renderTab4(fVal, dVal, pVal);
+      if (activeTabId === 'tab5') renderTab5(fVal, dVal, pVal); 
+    }
+
+    function renderTab1() {
+      var totalGoal = 0, totalCurrent = 0, totalCount = 0;
+      var b1Goal = 0, b1Cur = 0, b1Count = 0;
+      var b2Goal = 0, b2Cur = 0, b2Count = 0;
+      var b1Depts = {}, b2Depts = {};
+
+      globalData.status.forEach(function(d) {
+        totalGoal += d.goalRate; 
+        totalCurrent += d.currentRate;
+        totalCount++;
+
+        var deptMap = d.factory === 'BAP01' ? b1Depts : (d.factory === 'BAP02' ? b2Depts : null);
+        if (deptMap && d.dept) {
+          if (!deptMap[d.dept]) deptMap[d.dept] = { goal: 0, current: 0, count: 0 };
+          deptMap[d.dept].goal += d.goalRate;
+          deptMap[d.dept].current += d.currentRate;
+          deptMap[d.dept].count++;
+
+          if (d.factory === 'BAP01') { b1Goal += d.goalRate; b1Cur += d.currentRate; b1Count++; } 
+          else { b2Goal += d.goalRate; b2Cur += d.currentRate; b2Count++; }
+        }
+      });
+
+      var avgTotalGoal = totalCount > 0 ? Math.round(totalGoal / totalCount) : 0;
+      var avgTotalCur  = totalCount > 0 ? Math.round(totalCurrent / totalCount) : 0;
+      var avgB1Goal = b1Count > 0 ? Math.round(b1Goal / b1Count) : 0;
+      var avgB1Cur  = b1Count > 0 ? Math.round(b1Cur / b1Count) : 0;
+      var avgB2Goal = b2Count > 0 ? Math.round(b2Goal / b2Count) : 0;
+      var avgB2Cur  = b2Count > 0 ? Math.round(b2Cur / b2Count) : 0;
+
+      document.getElementById('kpiTotal').innerHTML = '<span class="text-gray-500 font-medium">목표 ' + avgTotalGoal + '%</span> <span class="mx-2 text-gray-300">/</span> <span class="text-2xl font-bold text-blue-600">현재 ' + avgTotalCur + '%</span>';
+      document.getElementById('kpiBap01').innerHTML = '<span class="text-gray-500 font-medium">목표 ' + avgB1Goal + '%</span> <span class="mx-2 text-gray-300">/</span> <span class="text-2xl font-bold text-green-600">현재 ' + avgB1Cur + '%</span>';
+      document.getElementById('kpiBap02').innerHTML = '<span class="text-gray-500 font-medium">목표 ' + avgB2Goal + '%</span> <span class="mx-2 text-gray-300">/</span> <span class="text-2xl font-bold text-purple-600">현재 ' + avgB2Cur + '%</span>';
+      document.getElementById('bap01Cards').innerHTML = generateDeptCardsHTML(b1Depts);
+      document.getElementById('bap02Cards').innerHTML = generateDeptCardsHTML(b2Depts);
+    }
+
+    function generateDeptCardsHTML(deptData) {
+      var html = '';
+      for (var dept in deptData) {
+        if (deptData.hasOwnProperty(dept)) {
+            var data = deptData[dept];
+            var avgGoal = Math.round(data.goal / data.count);
+            var avgCurrent = Math.round(data.current / data.count);
+            var percentOfGoal = avgGoal > 0 ? Math.min(100, (avgCurrent / avgGoal) * 100) : 0;
+            var colors = getColorByRate(avgCurrent);
+
+            html += '<div class="border rounded-lg p-4 bg-gray-50 hover:shadow-md transition duration-200">' +
+              '<h4 class="font-bold text-gray-700 mb-3 truncate" title="' + dept + '">' + dept + '</h4>' +
+              '<div class="flex justify-between items-end mb-1">' +
+                '<span class="text-sm ' + colors.text + ' font-bold">현재 ' + avgCurrent + '%</span>' +
+                '<span class="text-xs text-gray-500">목표 ' + avgGoal + '%</span>' +
+              '</div>' +
+              '<div class="w-full bg-gray-200 rounded-full h-2.5">' +
+                '<div class="' + colors.bar + ' h-2.5 rounded-full" style="width: ' + percentOfGoal + '%"></div>' +
+              '</div>' +
+            '</div>';
+        }
+      }
+      return html || '<p class="text-gray-500 text-sm">표시할 부서 데이터가 없습니다.</p>';
+    }
+
+    function renderTab2(fVal, dVal, pVal) {
+      var tbody = document.getElementById('taskTbody');
+      tbody.innerHTML = '';
+
+      var filtered = globalData.status.filter(function(d) {
+        return (!fVal || d.factory === fVal) && (!dVal || d.dept === dVal) && (!pVal || d.part === pVal);
+      });
+
+      filtered.forEach(function(d) {
+        var typeStr = [];
+        if(normalize(d.typeOffice) === 'O') typeStr.push('사무');
+        if(normalize(d.typeField) === 'O') typeStr.push('현장');
+        
+        var subj = globalData.subject.find(function(s) { 
+          return normalize(s.factory) === normalize(d.factory) &&
+                 normalize(s.dept) === normalize(d.dept) &&
+                 normalize(s.part) === normalize(d.part) &&
+                 normalize(s.taskName) === normalize(d.taskName);
+        });
+
+        var relCnt = subj ? subj.related.length : 0;
+        var addCnt = subj ? subj.additional.length : 0;
+        var relStr = relCnt > 0 ? (subj.related[0] + ' 외 ' + (relCnt-1) + '과목') : '없음';
+        var empStr = d.employees.length > 0 ? (d.employees[0].name + ' 외 ' + (d.employees.length-1) + '명') : '배정안됨';
+        var colors = getColorByRate(d.currentRate);
+        var barWidth = Math.min(100, (d.currentRate / d.goalRate) * 100 || 0);
+
+        tbody.innerHTML += '<tr>' +
+          '<td class="px-4 py-3 border-b text-sm">' + d.factory + '<br><span class="text-gray-500">' + d.dept + ' > ' + d.part + '</span></td>' +
+          '<td class="px-4 py-3 border-b text-sm font-bold">' + d.taskName + ' <span class="text-xs text-blue-500">(' + typeStr.join(', ') + ')</span><br><span class="text-xs text-gray-500 font-normal truncate block w-48" title="' + d.taskDesc + '">' + d.taskDesc + '</span></td>' +
+          '<td class="px-4 py-3 border-b text-sm w-48">' +
+            '<div class="flex justify-between text-xs mb-1">' +
+              '<span class="' + colors.text + ' font-bold">현재 ' + d.currentRate + '%</span>' +
+              '<span class="text-gray-500">목표 ' + d.goalRate + '%</span>' +
+            '</div>' +
+            '<div class="w-full bg-gray-200 rounded-full h-2.5">' +
+              '<div class="' + colors.bar + ' h-2.5 rounded-full" style="width: ' + barWidth + '%"></div>' +
+            '</div>' +
+          '</td>' +
+          '<td class="px-4 py-3 border-b text-sm">' + empStr + '</td>' +
+          '<td class="px-4 py-3 border-b text-sm">' + relStr + '<br><span class="text-xs text-gray-400">추가: ' + addCnt + '과목</span></td>' +
+        '</tr>';
+      });
+    }
+
+    function renderTab3(fVal, dVal, pVal) {
+      var container = document.getElementById('tab3');
+      container.innerHTML = '';
+      var officeWorkers = globalData.manpower.filter(function(m) { 
+        return normalize(m.type) === '사무직' && (!fVal || m.factory === fVal) && (!dVal || m.dept === dVal) && (!pVal || m.part === pVal);
+      });
+
+      document.getElementById('tabSummary').innerHTML = '<div class="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-2 rounded-lg shadow-sm text-sm font-bold flex items-center gap-2">' +
+          '<span>사무직 대상자:</span> <span class="text-lg leading-none">' + officeWorkers.length + '명</span>' +
+        '</div>';
+
+      officeWorkers.forEach(function(emp) {
+        var myTasks = globalData.status.filter(function(s) { 
+            return s.employees.some(function(e) { return normalize(e.id) === normalize(emp.id); }); 
+        });
+        var mySubjects = new Set();
+        myTasks.forEach(function(t) {
+          var subj = globalData.subject.find(function(sb) { 
+            return normalize(sb.factory) === normalize(t.factory) && normalize(sb.dept) === normalize(t.dept) &&
+                   normalize(sb.part) === normalize(t.part) && normalize(sb.taskName) === normalize(t.taskName);
+          });
+          if (subj) {
+            subj.related.forEach(function(s) { mySubjects.add('<span class="inline-block bg-blue-100 text-blue-800 text-xs px-2.5 py-1 rounded m-1">' + s + '</span>'); });
+            subj.additional.forEach(function(s) { mySubjects.add('<span class="inline-block bg-gray-100 text-gray-800 text-xs px-2.5 py-1 rounded m-1">' + s + '</span>'); });
+          }
+        });
+        container.innerHTML += createEmpCard(emp, mySubjects, true);
+      });
+    }
+
+    function renderTab4(fVal, dVal, pVal) {
+      var container = document.getElementById('tab4');
+      container.innerHTML = '';
+      var fieldWorkers = globalData.manpower.filter(function(m) { 
+        return normalize(m.type) === '현장직' && (!fVal || m.factory === fVal) && (!dVal || m.dept === dVal) && (!pVal || m.part === pVal);
+      });
+
+      document.getElementById('tabSummary').innerHTML = '<div class="bg-green-50 border border-green-200 text-green-800 px-4 py-2 rounded-lg shadow-sm text-sm font-bold flex items-center gap-2">' +
+          '<span>현장직 대상자:</span> <span class="text-lg leading-none">' + fieldWorkers.length + '명</span>' +
+        '</div>';
+
+      fieldWorkers.forEach(function(emp) {
+        var partTasks = globalData.status.filter(function(s) { 
+          return normalize(s.factory) === normalize(emp.factory) && normalize(s.dept) === normalize(emp.dept) &&
+                 normalize(s.part) === normalize(emp.part) && normalize(s.typeField) === 'O';
+        });
+        var mySubjects = new Set();
+        partTasks.forEach(function(t) {
+          var subj = globalData.subject.find(function(sb) { 
+            return normalize(sb.factory) === normalize(t.factory) && normalize(sb.dept) === normalize(t.dept) &&
+                   normalize(sb.part) === normalize(t.part) && normalize(sb.taskName) === normalize(t.taskName);
+          });
+          if (subj) {
+            subj.related.forEach(function(s) { mySubjects.add('<span class="inline-block bg-green-100 text-green-800 text-xs px-2.5 py-1 rounded m-1">' + s + '</span>'); });
+            subj.additional.forEach(function(s) { mySubjects.add('<span class="inline-block bg-gray-100 text-gray-800 text-xs px-2.5 py-1 rounded m-1">' + s + '</span>'); });
+          }
+        });
+        container.innerHTML += createEmpCard(emp, mySubjects, false);
+      });
+    }
+
+    function createEmpCard(emp, subjectsSet, isOffice) {
+      var subStr = subjectsSet.size > 0 ? Array.from(subjectsSet).join('') : '<span class="text-sm text-gray-400 m-1">해당 교육과목 없음</span>';
+      var borderColor = isOffice ? 'border-blue-500' : 'border-green-500';
+      var badgeTheme = isOffice ? 'bg-blue-50 text-blue-700 ring-blue-600/20' : 'bg-green-50 text-green-700 ring-green-600/20';
+      var empName = emp.name ? emp.name : '이름 누락';
+      var empId = emp.id ? emp.id : '사번 누락';
+      var empFactory = emp.factory ? emp.factory : '';
+      var empDeptStr = emp.dept ? ' > ' + emp.dept : '';
+      var empPartStr = emp.part ? ' > ' + emp.part : '';
+      var empPath = empFactory + empDeptStr + empPartStr;
+      var empPos = emp.position ? emp.position : '직급 누락';
+
+      var photosHtml = '';
+      if (emp.photo && emp.photo.indexOf('http') === 0) {
+        var finalPhotoUrl = emp.photo;
+        if (finalPhotoUrl.indexOf('drive.google.com/uc') !== -1 && finalPhotoUrl.indexOf('id=') !== -1) {
+            var fileIdMatch = finalPhotoUrl.match(/id=([^&]+)/);
+            if (fileIdMatch && fileIdMatch[1]) {
+                finalPhotoUrl = 'https://drive.google.com/thumbnail?id=' + fileIdMatch[1] + '&sz=w200-h200';
+            }
+        }
+        var defaultAvatar = "https://ui-avatars.com/api/?name=" + encodeURIComponent(empName) + "&background=random";
+        var photoBorder = isOffice ? 'border-blue-100' : 'border-green-100';
+        photosHtml = '<img src="' + finalPhotoUrl + '" class="w-20 h-20 rounded-full object-cover border-2 ' + photoBorder + ' shadow-sm" onerror="this.src=\'' + defaultAvatar + '\'">';
+      } else {
+        var initialChar = empName.charAt(0);
+        photosHtml = '<div class="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 font-bold text-xl border-2 border-gray-100 shadow-sm">' + initialChar + '</div>';
+      }
+
+      var html = '<div class="bg-white p-5 rounded-lg shadow border-l-4 ' + borderColor + ' flex flex-col md:flex-row gap-6 items-start md:items-center hover:shadow-md transition">' +
+          '<div class="flex-shrink-0">' +
+            photosHtml +
+          '</div>' +
+          '<div class="md:w-1/3 w-full flex-shrink-0">' +
+            '<div class="flex items-baseline gap-2 mb-1">' +
+              '<h4 class="font-bold text-xl text-gray-800">' + empName + '</h4>' +
+              '<span class="text-sm text-gray-500">' + empId + '</span>' +
+            '</div>' +
+            '<p class="text-sm text-gray-600">' + empPath + '</p>' +
+            '<p class="inline-flex items-center rounded-md px-2 py-1 mt-2 text-xs font-medium ring-1 ring-inset ' + badgeTheme + '">' + empPos + '</p>' +
+          '</div>' +
+          '<div class="md:w-2/3 w-full border-t md:border-t-0 md:border-l border-gray-100 pt-4 md:pt-0 md:pl-6 min-h-[5rem]">' +
+            '<h5 class="text-xs font-bold text-gray-400 mb-2">필수 수강과목</h5>' +
+            '<div class="flex flex-wrap">' + subStr + '</div>' +
+          '</div>' +
+        '</div>';
+
+      return html;
+    }
+
+    function renderTab5(fVal, dVal, pVal) {
+      var container = document.getElementById('tab5');
+      container.innerHTML = '';
+
+      var regularCount = 0;
+      var additionalCount = 0;
+      globalData.master.forEach(function(m) {
+        var cat = normalize(m.category);
+        if (cat.indexOf('추가') !== -1) additionalCount++;
+        else regularCount++;
+      });
+
+      document.getElementById('tabSummary').innerHTML = '<div class="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-2 rounded-lg shadow-sm text-sm font-bold flex items-center gap-2">' +
+          '<span>정규 과목:</span> <span class="text-lg leading-none">' + regularCount + '개</span>' +
+        '</div>' +
+        '<div class="bg-amber-50 border border-amber-300 text-amber-900 px-4 py-2 rounded-lg shadow-sm text-sm font-bold flex items-center gap-2">' +
+          '<span>추가 과목:</span> <span class="text-lg leading-none">' + additionalCount + '개</span>' +
+        '</div>';
+
+      var filteredManpower = globalData.manpower.filter(function(m) { 
+        return (!fVal || m.factory === fVal) && (!dVal || m.dept === dVal) && (!pVal || m.part === pVal);
+      });
+
+      var officeWorkers = filteredManpower.filter(function(m) { return normalize(m.type) === '사무직'; });
+      var fieldWorkers = filteredManpower.filter(function(m) { return normalize(m.type) === '현장직'; });
+
+      var subjectCounts = {};
+      globalData.master.forEach(function(m) {
+        subjectCounts[normalize(m.name)] = { office: 0, field: 0, info: m };
+      });
+
+      officeWorkers.forEach(function(emp) {
+        var myTasks = globalData.status.filter(function(s) { 
+            return s.employees.some(function(e) { return normalize(e.id) === normalize(emp.id); }); 
+        });
+        var mySubjects = new Set();
+        myTasks.forEach(function(t) {
+          var subj = globalData.subject.find(function(sb) { 
+            return normalize(sb.factory) === normalize(t.factory) && normalize(sb.dept) === normalize(t.dept) &&
+                   normalize(sb.part) === normalize(t.part) && normalize(sb.taskName) === normalize(t.taskName);
+          });
+          if (subj) {
+            subj.related.forEach(function(s) { mySubjects.add(normalize(s)); });
+            subj.additional.forEach(function(s) { mySubjects.add(normalize(s)); });
+          }
+        });
+        mySubjects.forEach(function(s) { if(subjectCounts[s]) subjectCounts[s].office++; });
+      });
+
+      fieldWorkers.forEach(function(emp) {
+        var partTasks = globalData.status.filter(function(s) { 
+          return normalize(s.factory) === normalize(emp.factory) && normalize(s.dept) === normalize(emp.dept) &&
+                 normalize(s.part) === normalize(emp.part) && normalize(s.typeField) === 'O';
+        });
+        var mySubjects = new Set();
+        partTasks.forEach(function(t) {
+          var subj = globalData.subject.find(function(sb) { 
+            return normalize(sb.factory) === normalize(t.factory) && normalize(sb.dept) === normalize(t.dept) &&
+                   normalize(sb.part) === normalize(t.part) && normalize(sb.taskName) === normalize(t.taskName);
+          });
+          if (subj) {
+            subj.related.forEach(function(s) { mySubjects.add(normalize(s)); });
+            subj.additional.forEach(function(s) { mySubjects.add(normalize(s)); });
+          }
+        });
+        mySubjects.forEach(function(s) { if(subjectCounts[s]) subjectCounts[s].field++; });
+      });
+
+      globalData.master.forEach(function(m) {
+        var normalizedName = normalize(m.name);
+        var counts = subjectCounts[normalizedName];
+        if (counts) {
+          var total = counts.office + counts.field;
+          var isAdditional = normalize(m.category).indexOf('추가') !== -1;
+          
+          var cardBgClass = isAdditional ? 'bg-amber-50 border-amber-300' : 'bg-white border-gray-200';
+          var mCategory = m.category || '정규과목';
+          var catTag = isAdditional 
+            ? '<span class="bg-amber-500 text-white text-xs font-bold px-2.5 py-1 rounded shadow-sm mr-2">' + m.category + '</span>'
+            : '<span class="bg-blue-500 text-white text-xs font-bold px-2.5 py-1 rounded shadow-sm mr-2">' + mCategory + '</span>';
+
+          var mCode = m.code || '코드없음';
+          var mDept = m.dept || '부서미상';
+          var deptTheme = 'bg-gray-100 text-gray-800 border-gray-200';
+          if (m.dept.indexOf('기술') !== -1) deptTheme = 'bg-blue-100 text-blue-800 border-blue-200';
+          else if (m.dept.indexOf('품질') !== -1) deptTheme = 'bg-red-100 text-red-800 border-red-200';
+          else if (m.dept.indexOf('생관') !== -1 || m.dept.indexOf('생산') !== -1) deptTheme = 'bg-green-100 text-green-800 border-green-200';
+
+          var managerStr = m.manager || '미지정';
+
+          container.innerHTML += '<div class="' + cardBgClass + ' p-5 rounded-lg shadow-sm border hover:shadow-md transition flex flex-col md:flex-row gap-6 items-start md:items-center justify-between">' +
+              '<div class="flex-1 w-full md:w-auto">' +
+                  '<div class="flex items-center mb-3">' +
+                      catTag +
+                      '<span class="text-xs font-bold text-gray-500 mr-2">' + mCode + '</span>' +
+                      '<span class="text-xs font-bold px-2 py-0.5 rounded border ' + deptTheme + '">' + mDept + '</span>' +
+                  '</div>' +
+                  '<h4 class="font-bold text-xl text-gray-900 mb-1 leading-tight">' + m.name + '</h4>' +
+                  '<p class="text-sm text-gray-500">👨‍💼 담당주재원 : <span class="font-medium text-gray-700">' + managerStr + '</span></p>' +
+              '</div>' +
+              '<div class="w-full md:w-auto flex flex-row shrink-0 bg-white/60 p-2 rounded-lg border border-gray-200/60 shadow-inner">' +
+                  '<div class="text-center px-4 md:px-6 py-2">' +
+                      '<p class="text-xs text-gray-500 mb-1">사무직</p>' +
+                      '<p class="font-bold text-blue-600 text-xl">' + counts.office + '<span class="text-sm font-normal text-gray-400">명</span></p>' +
+                  '</div>' +
+                  '<div class="text-center px-4 md:px-6 py-2 border-l border-gray-200/80">' +
+                      '<p class="text-xs text-gray-500 mb-1">현장직</p>' +
+                      '<p class="font-bold text-green-600 text-xl">' + counts.field + '<span class="text-sm font-normal text-gray-400">명</span></p>' +
+                  '</div>' +
+                  '<div class="text-center px-4 md:px-6 py-2 border-l border-gray-200/80 bg-gray-100/50 rounded-r-md">' +
+                      '<p class="text-xs font-bold text-gray-600 mb-1">총 수강인원</p>' +
+                      '<p class="font-black text-gray-800 text-2xl">' + total + '<span class="text-sm font-bold text-gray-500 ml-1">명</span></p>' +
+                  '</div>' +
+              '</div>' +
+            '</div>';
+        }
+      });
+    }
+  </script>
+</body>
+</html>
