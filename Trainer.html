@@ -37,8 +37,30 @@
       <button onclick="location.reload()" class="bg-purple-50 text-purple-600 px-4 py-2 rounded text-sm font-bold hover:bg-purple-100 transition">🔄 Refresh Data</button>
     </div>
 
-    <div id="trainerList" class="flex flex-col gap-4 mb-10">
-      <!-- Trainer cards will be rendered here -->
+    <div class="border-b border-gray-200 mb-6 font-bold">
+      <nav class="flex gap-8" aria-label="Tabs">
+        <button onclick="switchTab('tab-trainers')" id="btn-tab-trainers" class="tab-btn border-purple-600 text-purple-600 border-b-2 py-4 px-1 text-sm">
+          📋 My Training Tasks
+        </button>
+        <button onclick="switchTab('tab-subjects')" id="btn-tab-subjects" class="tab-btn border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 border-b-2 py-4 px-1 text-sm">
+          📊 Subject Training Progress
+        </button>
+      </nav>
+    </div>
+
+    <!-- Tab 1: Trainer List -->
+    <div id="tab-trainers" class="tab-content flex flex-col gap-4 mb-10">
+      <div id="trainerList" class="flex flex-col gap-4">
+        <!-- Trainer cards will be rendered here -->
+      </div>
+    </div>
+
+    <!-- Tab 2: Subject Status -->
+    <div id="tab-subjects" class="tab-content hidden flex flex-col gap-6 mb-10">
+      <div id="subjectCountArea" class="mb-4"></div>
+      <div id="subjectStatusList" class="flex flex-col gap-6">
+        <!-- Subject status cards will be rendered here -->
+      </div>
     </div>
   </div>
 
@@ -142,6 +164,22 @@
       }
     };
 
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(function(el) { el.classList.add('hidden'); });
+      document.getElementById(tabId).classList.remove('hidden');
+      
+      document.querySelectorAll('.tab-btn').forEach(function(el) { 
+        el.classList.remove('border-purple-600', 'text-purple-600', 'border-b-2');
+        el.classList.add('border-transparent', 'text-gray-500');
+      });
+      
+      var activeBtn = document.getElementById('btn-' + tabId);
+      activeBtn.classList.remove('border-transparent', 'text-gray-500');
+      activeBtn.classList.add('border-purple-600', 'text-purple-600', 'border-b-2');
+      
+      applyFilters(); // Re-render current tab with filters
+    }
+
     function initTrainerApp(data) {
       globalData.status = data.statusData;
       globalData.manpower = data.manpowerData;
@@ -154,7 +192,7 @@
       document.getElementById('app').style.display = 'block';
       
       initFilters();
-      renderTrainerList();
+      switchTab('tab-trainers'); // Default tab
     }
 
     /**
@@ -193,6 +231,13 @@
       return 'bg-green-500';
     }
 
+    function getColorByRate(rate) {
+      if (rate <= 20) return { text: 'text-red-600', bar: 'bg-red-500' };
+      if (rate <= 60) return { text: 'text-amber-500', bar: 'bg-amber-400' };
+      if (rate <= 80) return { text: 'text-green-600', bar: 'bg-green-500' };
+      return { text: 'text-blue-600', bar: 'bg-blue-500' };
+    }
+
     function initFilters() {
       var factories = Array.from(new Set(globalData.status.map(function(d) { return d.factory; }))).filter(Boolean);
       var selFactory = document.getElementById('selFactory');
@@ -220,7 +265,140 @@
     }
 
     function applyFilters() {
-      renderTrainerList();
+      if (!document.getElementById('tab-trainers').classList.contains('hidden')) {
+        renderTrainerList();
+      } else {
+        renderSubjectStatus();
+      }
+    }
+
+    function renderSubjectStatus() {
+      var container = document.getElementById('subjectStatusList');
+      var countArea = document.getElementById('subjectCountArea');
+      container.innerHTML = '';
+      
+      var fVal = document.getElementById('selFactory').value;
+      var dVal = document.getElementById('selDept').value;
+      var pVal = document.getElementById('selPart').value;
+
+      var regCount = 0, addCount = 0;
+      
+      globalData.master.forEach(function(m) {
+        var mCode = normalize(m.code);
+        var mDept = m.dept || '';
+        var mCategory = m.category || '';
+        
+        // Filter logic
+        var isMatch = (!fVal || normalize(m.factory) === normalize(fVal)) && 
+                      (!dVal || normalize(m.dept) === normalize(dVal)) && 
+                      (!pVal || normalize(m.part) === normalize(pVal));
+                      
+        // [IMPORTANT] If filter is active, we check if this subject exists in filtered departments
+        if (fVal || dVal || pVal) {
+          var hasRelation = globalData.subject.some(function(sb) {
+             var matchFilters = (!fVal || normalize(sb.factory) === normalize(fVal)) &&
+                                (!dVal || normalize(sb.dept) === normalize(dVal)) &&
+                                (!pVal || normalize(sb.part) === normalize(pVal));
+             return matchFilters && (sb.related.some(function(r) { return normalize(r) === normalize(m.name); }) || 
+                                     sb.additional.some(function(a) { return normalize(a) === normalize(m.name); }));
+          });
+          if (!hasRelation) return;
+        }
+
+        if (normalize(m.category).indexOf('추가') !== -1) addCount++; else regCount++;
+
+        var trainees = utilGetTraineesForSubject(m.code, m.trainerId);
+        var total = trainees.length;
+        var officeList = trainees.filter(function(tr) { return normalize(tr.type).indexOf('사무') !== -1 || tr.type === 'Office'; });
+        var fieldList = trainees.filter(function(tr) { return normalize(tr.type).indexOf('현장') !== -1 || tr.type === 'Field'; });
+        var counts = { office: officeList.length, field: fieldList.length };
+
+        var p1Users = new Set(), p2Users = new Set(), p3Users = new Set();
+        globalData.trainingData.forEach(function(td) {
+          if (normalize(td.subjectCode) === mCode) {
+            if (normalize(td.phase).indexOf('1') !== -1) p1Users.add(normalize(td.traineeId));
+            if (normalize(td.phase).indexOf('2') !== -1) p2Users.add(normalize(td.traineeId));
+            if (normalize(td.phase).indexOf('3') !== -1) p3Users.add(normalize(td.traineeId));
+          }
+        });
+
+        var dot1 = getLampColor(total, p1Users.size);
+        var dot2 = getLampColor(total, p2Users.size);
+        var dot3 = getLampColor(total, p3Users.size);
+
+        var rate = total > 0 ? Math.round((p1Users.size + p2Users.size + p3Users.size) / (total * 3) * 100) : 0;
+        var progress = getColorByRate(rate);
+
+        var isAdditional = (normalize(m.category).indexOf('추가') !== -1);
+        var deptTheme = isAdditional ? 'bg-gray-100 text-gray-400 border-gray-200' : 'bg-purple-100 text-purple-600 border-purple-200';
+        var catTag = isAdditional 
+          ? '<span class="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full mr-2">ADDITIONAL</span>'
+          : '<span class="bg-purple-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full mr-2">REGULAR</span>';
+
+        // Trainer Profile
+        var trainerHtml = '';
+        var trainer = globalData.manpower.find(function(man) { return normalize(man.id) === normalize(m.trainerId); });
+        if (trainer) {
+          var photoUrl = trainer.photo;
+          if (photoUrl && photoUrl.indexOf('id=') !== -1) {
+              var match = photoUrl.match(/id=([^&]+)/);
+              if (match) photoUrl = 'https://drive.google.com/thumbnail?id=' + match[1] + '&sz=w200-h200';
+          }
+          var photoContent = (photoUrl && photoUrl.startsWith('http')) 
+            ? '<img src="' + photoUrl + '" class="w-14 h-14 rounded-full object-cover border border-purple-100 shadow-sm">'
+            : '<div class="w-14 h-14 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 font-bold text-lg">' + (trainer.name?trainer.name[0]:'?') + '</div>';
+          
+          trainerHtml = '<div class="hidden xl:flex items-center gap-3 px-6 py-2 bg-white border border-gray-100 rounded-xl min-w-[360px] shadow-sm self-stretch my-1.5">' +
+              photoContent +
+              '<div>' +
+                '<div class="flex items-center gap-2 mb-0.5">' +
+                  '<span class="text-base font-black text-gray-900 leading-none">' + (trainer.name || '') + '</span>' +
+                  '<span class="text-[10px] text-gray-400 font-mono">' + (trainer.id || '') + '</span>' +
+                '</div>' +
+                '<p class="text-[10px] text-purple-600 font-black tracking-tight mb-0.5">' + (trainer.factory || '') + ' Campus</p>' +
+                '<p class="text-[11px] text-gray-500 font-bold leading-tight">' + (trainer.dept || '') + ' > ' + (trainer.part || '') + '</p>' +
+              '</div>' +
+            '</div>';
+        }
+
+        container.innerHTML += '<div class="bg-white p-5 rounded-lg shadow-sm border hover:shadow-md transition flex flex-col md:flex-row gap-6 items-start md:items-center justify-between">' +
+            '<div class="flex-1 w-full md:w-auto">' +
+                '<div class="flex items-center mb-3">' +
+                    catTag +
+                    '<span class="text-xs font-bold text-gray-500 mr-2">' + m.code + '</span>' +
+                    '<span class="text-xs font-bold px-2 py-0.5 rounded border ' + deptTheme + '">' + mDept + '</span>' +
+                    '<div class="flex gap-1 ml-4">' +
+                      '<div class="w-2.5 h-2.5 rounded-full ' + dot1 + '" title="1st Phase (' + p1Users.size + '/' + total + ')"></div>' +
+                      '<div class="w-2.5 h-2.5 rounded-full ' + dot2 + '" title="2nd Phase (' + p2Users.size + '/' + total + ')"></div>' +
+                      '<div class="w-2.5 h-2.5 rounded-full ' + dot3 + '" title="3rd Phase (' + p3Users.size + '/' + total + ')"></div>' +
+                    '</div>' +
+                '</div>' +
+                '<h4 class="font-bold text-xl text-gray-900 mb-0.5 leading-tight">' + (m.engName || m.name) + '</h4>' +
+                '<p class="text-[11px] font-bold text-gray-400 mb-2 uppercase tracking-tight">' + (m.engName ? m.name : '') + '</p>' +
+                '<p class="text-sm text-gray-500 flex items-center gap-1"><span class="opacity-70">👨‍💼 Coordinator :</span> <span class="font-bold text-gray-700">' + (m.manager || 'N/A') + '</span></p>' +
+            '</div>' +
+            trainerHtml + 
+            '<div class="w-full md:w-auto flex flex-row shrink-0 bg-gray-50 p-2 rounded-lg border border-gray-100">' +
+                '<div class="text-center px-4 md:px-6 py-2">' +
+                    '<p class="text-xs text-gray-500 mb-1">Office</p>' +
+                    '<p class="font-bold text-blue-600 text-xl">' + counts.office + '<span class="text-sm font-normal text-gray-400">P</span></p>' +
+                '</div>' +
+                '<div class="text-center px-4 md:px-6 py-2 border-l border-gray-200">' +
+                    '<p class="text-xs text-gray-500 mb-1">Field</p>' +
+                    '<p class="font-bold text-green-600 text-xl">' + counts.field + '<span class="text-sm font-normal text-gray-400">P</span></p>' +
+                '</div>' +
+                '<div class="text-center px-4 md:px-6 py-2 border-l border-gray-200 bg-white shadow-sm rounded-r-md">' +
+                    '<p class="text-xs font-bold text-gray-600 mb-1">Total</p>' +
+                    '<p class="font-black text-gray-800 text-2xl">' + total + '<span class="text-sm font-bold text-gray-500 ml-1">P</span></p>' +
+                '</div>' +
+            '</div>' +
+          '</div>';
+      });
+
+      countArea.innerHTML = '<div class="flex gap-4">' +
+        '<div class="bg-purple-600 text-white px-4 py-2 rounded-lg shadow-sm"><span class="text-xs opacity-80">Regular:</span> <span class="text-lg font-bold">' + regCount + '</span></div>' +
+        '<div class="bg-amber-400 text-white px-4 py-2 rounded-lg shadow-sm"><span class="text-xs opacity-80">Additional:</span> <span class="text-lg font-bold">' + addCount + '</span></div>' +
+      '</div>';
     }
 
     function renderTrainerList() {
