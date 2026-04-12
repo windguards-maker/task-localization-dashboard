@@ -188,6 +188,7 @@
 
     function getLampColor(targetCount, inputCount) {
       if (inputCount === 0) return 'bg-gray-200';
+      if (!targetCount || targetCount === 0) return 'bg-gray-200'; 
       if (inputCount < targetCount) return 'bg-amber-400';
       return 'bg-green-500';
     }
@@ -240,14 +241,14 @@
 
       trainers.forEach(function(emp) {
         var myTrainedSubjects = globalData.master.filter(function(m) { return normalize(m.trainerId) === normalize(emp.id); });
-        var mySubjectsHtml = myTrainedSubjects.map(function(m) {
-          var targetList = utilGetTraineesForSubject(m.code, emp.id);
+        var mySubjectsHtml = myTrainedSubjects.map(function(subjObj) {
+          var targetList = utilGetTraineesForSubject(subjObj.code, emp.id);
           var targetCnt = targetList.length;
 
           var p1Cnt = 0, p2Cnt = 0, p3Cnt = 0;
           if (globalData.trainingData) {
             var myHistory = globalData.trainingData.filter(function(td) { 
-              return normalize(td.subjectCode) === normalize(m.code) && normalize(td.trainerId) === normalize(emp.id); 
+              return normalize(td.subjectCode) === normalize(subjObj.code) && normalize(td.trainerId) === normalize(emp.id); 
             });
             var p1Users = new Set(), p2Users = new Set(), p3Users = new Set();
             myHistory.forEach(function(td) {
@@ -268,9 +269,9 @@
             '<div class="w-2.5 h-2.5 rounded-full ' + dot3 + '" title="3차 (' + p3Cnt + '/' + targetCnt + ')"></div>' +
           '</div>';
 
-          var dName = m.engName || m.name;
-          return '<button onclick="openTrainingModal(\'' + m.code + '\', \'' + dName + '\', \'' + emp.id + '\')" class="inline-flex items-center bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 text-xs px-3 py-1.5 rounded-full m-1 transition shadow-sm">' +
-            '<span class="font-bold">' + m.code + '</span>' + indicatorHtml + 
+          var dName = subjObj.engName || subjObj.name;
+          return '<button onclick="openTrainingModal(\'' + subjObj.code + '\', \'' + dName + '\', \'' + emp.id + '\')" class="inline-flex items-center bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 text-xs px-3 py-1.5 rounded-full m-1 transition shadow-sm">' +
+            '<span class="font-bold">' + subjObj.code + '</span>' + indicatorHtml + 
           '</button>';
         }).join('');
 
