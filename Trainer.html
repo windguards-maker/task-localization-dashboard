@@ -295,42 +295,67 @@
       var pVal = document.getElementById('selPart').value;
 
       var regCount = 0, addCount = 0;
-      
+
+      // ✅ Index.html과 동일한 방식: manpower.type으로 사무/현장 분리
+      var filteredManpower = globalData.manpower.filter(function(m) { 
+        return (!fVal || m.factory === fVal) && (!dVal || m.dept === dVal) && (!pVal || m.part === pVal);
+      });
+
+      var officeWorkers = filteredManpower.filter(function(m) { return normalize(m.type) === '사무직'; });
+      var fieldWorkers  = filteredManpower.filter(function(m) { return normalize(m.type) === '현장직'; });
+
+      // 과목별 카운트 맵 초기화
+      var subjectCounts = {};
+      globalData.master.forEach(function(m) {
+        subjectCounts[normalize(m.name)] = { office: 0, field: 0 };
+      });
+
+      // 사무직 → 업무 → 과목 역추적
+      officeWorkers.forEach(function(emp) {
+        var myTasks = globalData.status.filter(function(s) { 
+          return s.employees.some(function(e) { return normalize(e.id) === normalize(emp.id); }); 
+        });
+        var mySubjects = new Set();
+        myTasks.forEach(function(t) {
+          var subj = globalData.subject.find(function(sb) { 
+            return normalize(sb.factory) === normalize(t.factory) && normalize(sb.dept) === normalize(t.dept) &&
+                   normalize(sb.part) === normalize(t.part) && normalize(sb.taskName) === normalize(t.taskName);
+          });
+          if (subj) {
+            subj.related.forEach(function(s) { mySubjects.add(normalize(s)); });
+            subj.additional.forEach(function(s) { mySubjects.add(normalize(s)); });
+          }
+        });
+        mySubjects.forEach(function(s) { if (subjectCounts[s]) subjectCounts[s].office++; });
+      });
+
+      // 현장직 → 업무 → 과목 역추적
+      fieldWorkers.forEach(function(emp) {
+        var myTasks = globalData.status.filter(function(s) { 
+          return s.employees.some(function(e) { return normalize(e.id) === normalize(emp.id); }); 
+        });
+        var mySubjects = new Set();
+        myTasks.forEach(function(t) {
+          var subj = globalData.subject.find(function(sb) { 
+            return normalize(sb.factory) === normalize(t.factory) && normalize(sb.dept) === normalize(t.dept) &&
+                   normalize(sb.part) === normalize(t.part) && normalize(sb.taskName) === normalize(t.taskName);
+          });
+          if (subj) {
+            subj.related.forEach(function(s) { mySubjects.add(normalize(s)); });
+            subj.additional.forEach(function(s) { mySubjects.add(normalize(s)); });
+          }
+        });
+        mySubjects.forEach(function(s) { if (subjectCounts[s]) subjectCounts[s].field++; });
+      });
+
+      // 과목 카드 렌더링
       globalData.master.forEach(function(m) {
         var mCode = normalize(m.code);
         var mDept = m.dept || '';
-        var mCategory = m.category || '';
+        var counts = subjectCounts[normalize(m.name)] || { office: 0, field: 0 };
+        var total = counts.office + counts.field;
         
-        // Filter logic
-        var isMatch = (!fVal || normalize(m.factory) === normalize(fVal)) && 
-                      (!dVal || normalize(m.dept) === normalize(dVal)) && 
-                      (!pVal || normalize(m.part) === normalize(pVal));
-                      
-        // [IMPORTANT] If filter is active, we check if this subject exists in filtered departments
-        if (fVal || dVal || pVal) {
-          var hasRelation = globalData.subject.some(function(sb) {
-             var matchFilters = (!fVal || normalize(sb.factory) === normalize(fVal)) &&
-                                (!dVal || normalize(sb.dept) === normalize(dVal)) &&
-                                (!pVal || normalize(sb.part) === normalize(pVal));
-             return matchFilters && (sb.related.some(function(r) { return normalize(r) === normalize(m.name); }) || 
-                                     sb.additional.some(function(a) { return normalize(a) === normalize(m.name); }));
-          });
-          if (!hasRelation) return;
-        }
-
         if (normalize(m.category).indexOf('추가') !== -1) addCount++; else regCount++;
-
-        var trainees = utilGetTraineesForSubject(m.code, m.trainerId);
-        var total = trainees.length;
-        var officeList = trainees.filter(function(tr) { 
-          var t = tr.type ? normalize(tr.type) : (tr.typeField ? normalize(tr.typeField) : '');
-          return t.indexOf('사무') !== -1 || t === 'OFFICE' || t === 'A'; 
-        });
-        var fieldList = trainees.filter(function(tr) { 
-          var t = tr.type ? normalize(tr.type) : (tr.typeField ? normalize(tr.typeField) : '');
-          return t.indexOf('현장') !== -1 || t === 'FIELD' || t === 'O'; 
-        });
-        var counts = { office: officeList.length, field: fieldList.length };
 
         var p1Users = new Set(), p2Users = new Set(), p3Users = new Set();
         globalData.trainingData.forEach(function(td) {
@@ -345,9 +370,6 @@
         var dot2 = getLampColor(total, p2Users.size);
         var dot3 = getLampColor(total, p3Users.size);
 
-        var rate = total > 0 ? Math.round((p1Users.size + p2Users.size + p3Users.size) / (total * 3) * 100) : 0;
-        var progress = getColorByRate(rate);
-
         var isAdditional = (normalize(m.category).indexOf('추가') !== -1);
         var deptTheme = isAdditional ? 'bg-gray-100 text-gray-400 border-gray-200' : 'bg-purple-100 text-purple-600 border-purple-200';
         var catTag = isAdditional 
@@ -360,8 +382,8 @@
         if (trainer) {
           var photoUrl = trainer.photo;
           if (photoUrl && photoUrl.indexOf('id=') !== -1) {
-              var match = photoUrl.match(/id=([^&]+)/);
-              if (match) photoUrl = 'https://drive.google.com/thumbnail?id=' + match[1] + '&sz=w200-h200';
+              var matchP = photoUrl.match(/id=([^&]+)/);
+              if (matchP) photoUrl = 'https://drive.google.com/thumbnail?id=' + matchP[1] + '&sz=w200-h200';
           }
           var photoContent = (photoUrl && photoUrl.startsWith('http')) 
             ? '<img src="' + photoUrl + '" class="w-14 h-14 rounded-full object-cover border border-purple-100 shadow-sm">'
@@ -418,7 +440,8 @@
         '<div class="bg-purple-600 text-white px-4 py-2 rounded-lg shadow-sm"><span class="text-xs opacity-80">Regular:</span> <span class="text-lg font-bold">' + regCount + '</span></div>' +
         '<div class="bg-amber-400 text-white px-4 py-2 rounded-lg shadow-sm"><span class="text-xs opacity-80">Additional:</span> <span class="text-lg font-bold">' + addCount + '</span></div>' +
       '</div>';
-    }
+
+
 
     function renderTrainerList() {
       var container = document.getElementById('trainerList');
