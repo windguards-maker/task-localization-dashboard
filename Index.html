@@ -818,12 +818,30 @@
         if (subj) {
           if (subj.related.some(function(s) { return normalize(s) === targetName; }) || 
               subj.additional.some(function(s) { return normalize(s) === targetName; })) {
+            
+            // Case 1: Office Workers (Explicit IDs)
             task.employees.forEach(function(e) {
               if (e.id && normalize(e.id) !== normalize(trainerId) && !trainees.some(function(tr){return normalize(tr.id)===normalize(e.id)})) {
                 var empInfo = globalData.manpower.find(function(m) { return normalize(m.id) === normalize(e.id); });
-                trainees.push(empInfo || { id: e.id, name: e.name, type: (task.typeOffice === 'O' ? 'Office' : 'Field') });
+                trainees.push(empInfo || { id: e.id, name: e.name });
               }
             });
+
+            // ✅ Case 2: Field Workers (Group Match by Factory/Dept/Part)
+            if (normalize(task.typeField) === 'O') {
+              var fWorkers = globalData.manpower.filter(function(m) {
+                return normalize(m.type) === normalize('현장직') &&
+                       normalize(m.factory) === normalize(task.factory) &&
+                       normalize(m.dept) === normalize(task.dept) &&
+                       normalize(m.part) === normalize(task.part) &&
+                       normalize(m.id) !== normalize(trainerId);
+              });
+              fWorkers.forEach(function(fw) {
+                if (!trainees.some(function(tr){ return normalize(tr.id) === normalize(fw.id); })) {
+                  trainees.push(fw);
+                }
+              });
+            }
           }
         }
       });

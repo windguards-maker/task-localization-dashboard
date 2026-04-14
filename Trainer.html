@@ -213,12 +213,28 @@
           if (subj.related.some(function(s) { return normalize(s) === targetName; }) || 
               subj.additional.some(function(s) { return normalize(s) === targetName; })) {
             task.employees.forEach(function(e) {
+              // Case 1: Office Workers (Explicit IDs)
               if (e.id && normalize(e.id) !== normalize(trainerId) && !trainees.some(function(tr){return normalize(tr.id)===normalize(e.id)})) {
                 var empInfo = globalData.manpower.find(function(m) { return normalize(m.id) === normalize(e.id); });
-                // ✅ 원본 manpower 객체를 절대 오염시키지 않음 (type 덮어쓰기 금지)
                 trainees.push(empInfo || { id: e.id, name: e.name });
               }
             });
+
+            // ✅ Case 2: Field Workers (Group Match by Factory/Dept/Part)
+            if (normalize(task.typeField) === 'O') {
+              var fWorkers = globalData.manpower.filter(function(m) {
+                return normalize(m.type) === normalize('현장직') &&
+                       normalize(m.factory) === normalize(task.factory) &&
+                       normalize(m.dept) === normalize(task.dept) &&
+                       normalize(m.part) === normalize(task.part) &&
+                       normalize(m.id) !== normalize(trainerId); // Exclude trainer
+              });
+              fWorkers.forEach(function(fw) {
+                if (!trainees.some(function(tr){ return normalize(tr.id) === normalize(fw.id); })) {
+                  trainees.push(fw);
+                }
+              });
+            }
           }
         }
       });
