@@ -213,9 +213,11 @@
           if (subj.related.some(function(s) { return normalize(s) === targetName; }) || 
               subj.additional.some(function(s) { return normalize(s) === targetName; })) {
             task.employees.forEach(function(e) {
+              if (e.id && normalize(e.id) !== normalize(trainerId) && !trainees.some(function(tr){return normalize(tr.id)===normalize(e.id)})) {
+                var empInfo = globalData.manpower.find(function(m) { return normalize(m.id) === normalize(e.id); });
                 var typeVal = (task.typeField === 'A') ? 'Office' : 'Field';
                 if (empInfo) {
-                  empInfo.type = typeVal; // 부가적으로 type 속성 추가
+                  empInfo.type = typeVal;
                   trainees.push(empInfo);
                 } else {
                   trainees.push({ id: e.id, name: e.name, type: typeVal });
