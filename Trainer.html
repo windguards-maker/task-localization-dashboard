@@ -215,20 +215,8 @@
             task.employees.forEach(function(e) {
               if (e.id && normalize(e.id) !== normalize(trainerId) && !trainees.some(function(tr){return normalize(tr.id)===normalize(e.id)})) {
                 var empInfo = globalData.manpower.find(function(m) { return normalize(m.id) === normalize(e.id); });
-                var typeVal = 'Field'; // Default
-                var tO = task.typeOffice ? normalize(task.typeOffice) : '';
-                var tF = task.typeField ? normalize(task.typeField) : '';
-                if (tO.indexOf('사무') !== -1 || tO === 'A' || tO === 'OFFICE') {
-                  typeVal = 'Office';
-                } else if (tF.indexOf('현장') !== -1 || tF === 'O' || tF === 'FIELD') {
-                  typeVal = 'Field';
-                }
-                if (empInfo) {
-                  empInfo.type = typeVal;
-                  trainees.push(empInfo);
-                } else {
-                  trainees.push({ id: e.id, name: e.name, type: typeVal });
-                }
+                // ✅ 원본 manpower 객체를 절대 오염시키지 않음 (type 덮어쓰기 금지)
+                trainees.push(empInfo || { id: e.id, name: e.name });
               }
             });
           }
@@ -301,14 +289,13 @@
         var mCode = normalize(m.code);
         var mDept = m.dept || '';
 
-        // ✅ utilGetTraineesForSubject로 수강자 목록 획득 후 manpower.type 직접 조회
+        // ✅ 수강자 목록 획득 후 원본 manpower.type(한글)으로 직접 비교
         var trainees = utilGetTraineesForSubject(m.code, m.trainerId);
         var officeCount = 0, fieldCount = 0;
         trainees.forEach(function(tr) {
-          var empInfo = globalData.manpower.find(function(man) { return normalize(man.id) === normalize(tr.id); });
-          var empType = empInfo ? normalize(empInfo.type) : '';
-          if (empType === normalize('사무직')) officeCount++;
-          else if (empType === normalize('현장직')) fieldCount++;
+          var t = normalize(tr.type || '');
+          if (t === normalize('사무직')) officeCount++;
+          else if (t === normalize('현장직')) fieldCount++;
         });
         var counts = { office: officeCount, field: fieldCount };
         var total = officeCount + fieldCount;
