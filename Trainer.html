@@ -288,6 +288,12 @@
       var officeWorkers = globalData.manpower.filter(function(m) { return normalize(m.type) === '사무직'; });
       var fieldWorkers  = globalData.manpower.filter(function(m) { return normalize(m.type) === '현장직'; });
 
+      // 🐛 DEBUG: 현장직/사무직 인원수 확인 (이후 제거)
+      console.log('[DEBUG] manpower total:', globalData.manpower.length,
+        '| 사무직:', officeWorkers.length, '| 현장직:', fieldWorkers.length,
+        '| 기타:', globalData.manpower.filter(function(m){ return normalize(m.type) !== '사무직' && normalize(m.type) !== '현장직'; }).length,
+        '| type samples:', globalData.manpower.slice(0,3).map(function(m){ return m.type; }));
+
       var subjectCounts = {};
       globalData.master.forEach(function(m) {
         subjectCounts[normalize(m.name)] = { office: 0, field: 0 };
