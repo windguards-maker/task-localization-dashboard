@@ -213,9 +213,13 @@
           if (subj.related.some(function(s) { return normalize(s) === targetName; }) || 
               subj.additional.some(function(s) { return normalize(s) === targetName; })) {
             task.employees.forEach(function(e) {
-              if (e.id && normalize(e.id) !== normalize(trainerId) && !trainees.some(function(tr){return normalize(tr.id)===normalize(e.id)})) {
-                var empInfo = globalData.manpower.find(function(m) { return normalize(m.id) === normalize(e.id); });
-                trainees.push(empInfo || { id: e.id, name: e.name, type: (task.typeOffice === 'O' ? 'Office' : 'Field') });
+                var typeVal = (task.typeField === 'A') ? 'Office' : 'Field';
+                if (empInfo) {
+                  empInfo.type = typeVal; // 부가적으로 type 속성 추가
+                  trainees.push(empInfo);
+                } else {
+                  trainees.push({ id: e.id, name: e.name, type: typeVal });
+                }
               }
             });
           }
@@ -309,8 +313,14 @@
 
         var trainees = utilGetTraineesForSubject(m.code, m.trainerId);
         var total = trainees.length;
-        var officeList = trainees.filter(function(tr) { return normalize(tr.type).indexOf('사무') !== -1 || tr.type === 'Office'; });
-        var fieldList = trainees.filter(function(tr) { return normalize(tr.type).indexOf('현장') !== -1 || tr.type === 'Field'; });
+        var officeList = trainees.filter(function(tr) { 
+          var t = tr.type ? normalize(tr.type) : (tr.typeField ? normalize(tr.typeField) : '');
+          return t.indexOf('사무') !== -1 || t === 'OFFICE' || t === 'A'; 
+        });
+        var fieldList = trainees.filter(function(tr) { 
+          var t = tr.type ? normalize(tr.type) : (tr.typeField ? normalize(tr.typeField) : '');
+          return t.indexOf('현장') !== -1 || t === 'FIELD' || t === 'O'; 
+        });
         var counts = { office: officeList.length, field: fieldList.length };
 
         var p1Users = new Set(), p2Users = new Set(), p3Users = new Set();
