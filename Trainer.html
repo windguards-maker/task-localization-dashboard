@@ -288,11 +288,6 @@
       var officeWorkers = globalData.manpower.filter(function(m) { return normalize(m.type) === '사무직'; });
       var fieldWorkers  = globalData.manpower.filter(function(m) { return normalize(m.type) === '현장직'; });
 
-      // 🐛 DEBUG: 현장직/사무직 인원수 확인 (이후 제거)
-      console.log('[DEBUG] manpower total:', globalData.manpower.length,
-        '| 사무직:', officeWorkers.length, '| 현장직:', fieldWorkers.length,
-        '| 기타:', globalData.manpower.filter(function(m){ return normalize(m.type) !== '사무직' && normalize(m.type) !== '현장직'; }).length,
-        '| type samples:', globalData.manpower.slice(0,3).map(function(m){ return m.type; }));
 
       var subjectCounts = {};
       globalData.master.forEach(function(m) {
@@ -318,11 +313,14 @@
       });
 
       fieldWorkers.forEach(function(emp) {
-        var myTasks = globalData.status.filter(function(s) {
-          return s.employees.some(function(e) { return normalize(e.id) === normalize(emp.id); });
+        var partTasks = globalData.status.filter(function(s) {
+          return normalize(s.factory) === normalize(emp.factory) &&
+                 normalize(s.dept)    === normalize(emp.dept) &&
+                 normalize(s.part)    === normalize(emp.part) &&
+                 normalize(s.typeField) === 'O';
         });
         var mySubjects = new Set();
-        myTasks.forEach(function(t) {
+        partTasks.forEach(function(t) {
           var subj = globalData.subject.find(function(sb) {
             return normalize(sb.factory) === normalize(t.factory) && normalize(sb.dept) === normalize(t.dept) &&
                    normalize(sb.part) === normalize(t.part) && normalize(sb.taskName) === normalize(t.taskName);
