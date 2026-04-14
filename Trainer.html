@@ -296,64 +296,23 @@
 
       var regCount = 0, addCount = 0;
 
-      // ✅ Index.html과 동일한 방식: manpower.type으로 사무/현장 분리
-      var filteredManpower = globalData.manpower.filter(function(m) { 
-        return (!fVal || m.factory === fVal) && (!dVal || m.dept === dVal) && (!pVal || m.part === pVal);
-      });
-
-      var officeWorkers = filteredManpower.filter(function(m) { return normalize(m.type) === '사무직'; });
-      var fieldWorkers  = filteredManpower.filter(function(m) { return normalize(m.type) === '현장직'; });
-
-      // 과목별 카운트 맵 초기화
-      var subjectCounts = {};
-      globalData.master.forEach(function(m) {
-        subjectCounts[normalize(m.name)] = { office: 0, field: 0 };
-      });
-
-      // 사무직 → 업무 → 과목 역추적
-      officeWorkers.forEach(function(emp) {
-        var myTasks = globalData.status.filter(function(s) { 
-          return s.employees.some(function(e) { return normalize(e.id) === normalize(emp.id); }); 
-        });
-        var mySubjects = new Set();
-        myTasks.forEach(function(t) {
-          var subj = globalData.subject.find(function(sb) { 
-            return normalize(sb.factory) === normalize(t.factory) && normalize(sb.dept) === normalize(t.dept) &&
-                   normalize(sb.part) === normalize(t.part) && normalize(sb.taskName) === normalize(t.taskName);
-          });
-          if (subj) {
-            subj.related.forEach(function(s) { mySubjects.add(normalize(s)); });
-            subj.additional.forEach(function(s) { mySubjects.add(normalize(s)); });
-          }
-        });
-        mySubjects.forEach(function(s) { if (subjectCounts[s]) subjectCounts[s].office++; });
-      });
-
-      // 현장직 → 업무 → 과목 역추적
-      fieldWorkers.forEach(function(emp) {
-        var myTasks = globalData.status.filter(function(s) { 
-          return s.employees.some(function(e) { return normalize(e.id) === normalize(emp.id); }); 
-        });
-        var mySubjects = new Set();
-        myTasks.forEach(function(t) {
-          var subj = globalData.subject.find(function(sb) { 
-            return normalize(sb.factory) === normalize(t.factory) && normalize(sb.dept) === normalize(t.dept) &&
-                   normalize(sb.part) === normalize(t.part) && normalize(sb.taskName) === normalize(t.taskName);
-          });
-          if (subj) {
-            subj.related.forEach(function(s) { mySubjects.add(normalize(s)); });
-            subj.additional.forEach(function(s) { mySubjects.add(normalize(s)); });
-          }
-        });
-        mySubjects.forEach(function(s) { if (subjectCounts[s]) subjectCounts[s].field++; });
-      });
-
       // 과목 카드 렌더링
       globalData.master.forEach(function(m) {
         var mCode = normalize(m.code);
         var mDept = m.dept || '';
-        var counts = subjectCounts[normalize(m.name)] || { office: 0, field: 0 };
-        var total = counts.office + counts.field;
+
+        // ✅ utilGetTraineesForSubject로 수강자 목록 획득 후 manpower.type 직접 조회
+        var trainees = utilGetTraineesForSubject(m.code, m.trainerId);
+        var officeCount = 0, fieldCount = 0;
+        trainees.forEach(function(tr) {
+          var empInfo = globalData.manpower.find(function(man) { return normalize(man.id) === normalize(tr.id); });
+          var empType = empInfo ? normalize(empInfo.type) : '';
+          if (empType === normalize('사무직')) officeCount++;
+          else if (empType === normalize('현장직')) fieldCount++;
+        });
+        var counts = { office: officeCount, field: fieldCount };
+        var total = officeCount + fieldCount;
+
         
         if (normalize(m.category).indexOf('추가') !== -1) addCount++; else regCount++;
 
