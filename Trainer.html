@@ -215,7 +215,14 @@
             task.employees.forEach(function(e) {
               if (e.id && normalize(e.id) !== normalize(trainerId) && !trainees.some(function(tr){return normalize(tr.id)===normalize(e.id)})) {
                 var empInfo = globalData.manpower.find(function(m) { return normalize(m.id) === normalize(e.id); });
-                var typeVal = (task.typeField === 'A') ? 'Office' : 'Field';
+                var typeVal = 'Field'; // Default
+                var tO = task.typeOffice ? normalize(task.typeOffice) : '';
+                var tF = task.typeField ? normalize(task.typeField) : '';
+                if (tO.indexOf('사무') !== -1 || tO === 'A' || tO === 'OFFICE') {
+                  typeVal = 'Office';
+                } else if (tF.indexOf('현장') !== -1 || tF === 'O' || tF === 'FIELD') {
+                  typeVal = 'Field';
+                }
                 if (empInfo) {
                   empInfo.type = typeVal;
                   trainees.push(empInfo);
